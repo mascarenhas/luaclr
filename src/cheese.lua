@@ -1,12 +1,16 @@
+-- Cheese: a PEG parser generator for Lua, in Lua
+
 module("cheese", package.seeall)
+
+local function parse_error(data)
+      return error("parse error", data)
+end
 
 function str(s)
 	 return function (strm)
-	 	local state = strm.state
 		local ss = strm:gets(string.len(s))
 		if (not ss) or (s ~= ss) then
-		   strm:backtrack(state)
-		   return false
+		   return parse_error({tag = "string", stream = strm, string = s})
   	        end
 	     	return s
 	 end
@@ -15,19 +19,16 @@ end
 function class(...)
 	 local args = {...}
 	 return function (strm)
-	 	local state = strm.state
 	 	local c = strm:getc()
 		if not c then
-		   strm:backtrack(state)
-		   return false
+		   return parse_error({tag = "class", stream = strm, class = args})
 		end
 	 	for i = 1, #args, 2 do
 		    if (c >= args[i]) and (c <= args[i+1]) then
 		       return c
 		    end
 		end
-		strm:backtrack(state)
-		return false
+		return parse_error({tag = "class", stream = strm, class = args})
 	 end
 end
 
@@ -37,36 +38,43 @@ end
 
 function opt(exp)
 	 return function (strm)
-	 	local res = exp(strm)
-		if res then
+	 	local state = strm.state
+	 	local ok, res = pcall(exp, strm)
+		if ok then
 		    return res
 		else
-		    return true
+		    strm:backtrack(state)
+		    return {}
 		end
 	 end
 end
 
 function star(exp)
 	 return function (strm)
+	 	local state
 	 	local list = {}
-	 	local res = exp(strm)
-		while res do
+	 	local ok, res = pcall(exp, strm)
+		while ok do
 		      table.insert(list, res)
-		      res = exp(strm)
+		      state = strm.state
+		      ok, res = pcall(exp, strm)
 		end
+		strm:backtrack(state)
 		return list
 	 end
 end
 
 function plus(exp)
 	 return function (strm)
+	 	local state, ok
 	 	local list = {}
-		local res = exp(strm)
-		if not res then return false end
+		res = exp(strm)
 		repeat
 		    table.insert(list, res)
-		    res = exp(strm)
-		until not res
+		    state = strm.state
+		    ok, res = pcall(exp, strm)
+		until not ok
+		strm:backtrack(state)
 		return list
 	end
 end
@@ -74,21 +82,25 @@ end
 function pand(exp)
 	 return function (strm)
 	 	local state = strm.state
-		local res = exp(strm)
+		local ok, res = pcall(exp, strm)
 		strm:backtrack(state)
-		return toboolean(res)
+		if ok then
+		   return {}
+		else
+		   return parse_error(res)
+		end
 	 end
 end
 
 function pnot(exp)
 	return function (strm)
 	 	local state = strm.state
-		local res = exp (strm)
+		local ok, res = pcall(exp, strm)
 		strm:backtrack(state)
-		if res then
-		   return false
+		if ok then
+		   return parse_error({tag = "not", stream = strm})
 		else
-		   return true
+		   return {}
 		end
 	end
 end
@@ -99,12 +111,12 @@ function seq(...)
 	 	local state = strm.state
 		local list = {}
 		for i, exp in ipairs(args) do
-		    local res = exp(strm)
-		    if res and type(res) ~= "boolean" then
+		    local ok, res = pcall(exp, strm)
+		    if ok and #res > 0 then
 		       table.insert(list, res)
-		    elseif not res then
+		    elseif not ok then
 		       strm:backtrack(state)
-		       return false
+		       return parse_error(res)
 		    end
 		end
 		return list
@@ -115,12 +127,14 @@ function choice(...)
 	 local args = {...}
 	 return function (strm)
 		for i, exp in ipairs(args) do
-		    local res = exp(strm)
-		    if res then
+		    local state = strm.state
+		    local ok, res = pcall(exp, strm)
+		    if ok then
 		       return res
 		    end
+		    strm:backtrack(state)
 		end
-		return false
+		return parse_error({tag = "choice", stream = strm})
 	 end
 end
 
@@ -137,21 +151,13 @@ end
 
 function skip(exp)
 	 return function(strm)
-	 	if exp(strm) then
-		   return true
-		else
-		   return false
-		end
+	 	exp(strm)
+		return {}
 	 end
 end
 
 function bind(exp, func)
 	 return function(strm)
-	 	local res = exp(strm)
-		if res then
-		   return func(res)
-		else
-		   return false
-		end
+	 	return func(exp(strm))
 	 end
 end
