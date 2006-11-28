@@ -6,6 +6,12 @@ local function parse_error(data)
       return error(data)
 end
 
+local function flatten
+flatten = function(tab)
+	if type(tab) == "string" then return tab end
+	return table.concat(table.map(tab, flatten))
+end
+
 local function memoize(func)
       local cache = {}
       return function (strm)
@@ -69,6 +75,8 @@ any = memoize(function (strm)
     return strm:getc()
 end)
 
+digit = class("0", "9")
+
 function opt(exp)
 	 return memoize(function (strm)
 	 	local state = strm:state()
@@ -88,7 +96,7 @@ function star(exp)
 	 	local list = {}
 	 	local ok, res = pcall(exp, strm)
 		while ok do
-		      if #res > 0 then table.insert(list, res) end
+		      table.insert(list, res)
 		      state = strm:state()
 		      ok, res = pcall(exp, strm)
 		end
@@ -103,7 +111,7 @@ function plus(exp)
 	 	local list = {}
 		local res = exp(strm)
 		repeat
-		    if #res > 0 then table.insert(list, res) end
+		    table.insert(list, res)
 		    state = strm:state()
 		    ok, res = pcall(exp, strm)
 		until not ok
@@ -145,9 +153,9 @@ function seq(...)
 		local list = {}
 		for i, exp in ipairs(args) do
 		    local ok, res = pcall(exp, strm)
-		    if ok and #res > 0 then
+		    if ok then
 		       table.insert(list, res)
-		    elseif not ok then
+		    else
 		       strm:backtrack(state)
 		       return parse_error(res)
 		    end
@@ -175,7 +183,7 @@ function concat(exp)
 	 return function (strm)
 	 	local res = exp(strm)
 		if type(res) == "table" then
-		   return table.concat(res)
+		   return flatten(res)
 		else
 		   return res
 		end
