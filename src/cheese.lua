@@ -9,6 +9,7 @@ end
 local function flatten
 flatten = function(tab)
 	if type(tab) == "string" then return tab end
+	if not tab then return "" end
 	return table.concat(table.map(tab, flatten))
 end
 
@@ -85,7 +86,7 @@ function opt(exp)
 		    return res
 		else
 		    strm:backtrack(state)
-		    return {}
+		    return nil
 		end
 	 end)
 end
@@ -126,7 +127,7 @@ function pand(exp)
 		local ok, res = pcall(exp, strm)
 		strm:backtrack(state)
 		if ok then
-		   return {}
+		   return nil
 		else
 		   return parse_error(res)
 		end
@@ -141,7 +142,7 @@ function pnot(exp)
 		if ok then
 		   return parse_error({tag = "not", stream = strm})
 		else
-		   return {}
+		   return nil
 		end
 	end)
 end
@@ -193,7 +194,7 @@ end
 function skip(exp)
 	 return function (strm)
 	 	exp(strm)
-		return {}
+		return nil
 	 end
 end
 
