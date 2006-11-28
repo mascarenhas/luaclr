@@ -7,12 +7,22 @@ local function parse_error(data)
 end
 
 local function memoize(func)
+      local cache = {}
       return function (strm)
-      	     local res = strm:memoized()
-	     if not res then
-	     	local state = strm:state()
-	     	res = func(strm)
-		strm:memoize(state, res)
+      	     local state = strm:state()
+      	     local strm_cache = cache[strm]
+	     local res
+	     if not strm_cache then
+	         strm_cache = {}
+		 cache[strm] = strm_cache
+		 res = func(strm)
+		 strm_cache[state] = res	 
+	     else
+	         res = strm_cache[state] 
+	     	 if not res then
+	     	    res = func(strm)
+		    strm_cache[state] = res
+		 end
 	     end
 	     return res
       end

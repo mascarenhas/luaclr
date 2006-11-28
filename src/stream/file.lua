@@ -13,8 +13,7 @@ end
 
 function new(file)
 	 return { file = file, line = 1, getc = getc, backtrack = backtrack,
-	   gets = gets, memoize = memoize, memoized = memoized, state = state,
-	   cache = {} }
+	   gets = get, state = state }
 end
 
 function getc(strm)
@@ -43,10 +42,3 @@ function backtrack(strm, st)
 	 strm.line = line
 end
 
-function memoize(strm, st, res)
-	 strm.cache[st] = res
-end
-
-function memoized(strm)
-	 return strm.cache[strm:state()]
-end

@@ -13,8 +13,7 @@ end
 
 function new(str)
 	 return { str = str, position = 1, line = 1, getc = getc, backtrack = backtrack,
-	   gets = gets, state = state, memoize = memoize, memoized = memoized,
-	   cache = {} }
+	   gets = gets, state = state }
 end
 
 function getc(strm)
@@ -51,10 +50,3 @@ function backtrack(strm, st)
 	 strm.line = line
 end
 
-function memoize(strm, state, res)
-	 strm.cache[state] = res
-end
-
-function memoized(strm)
-	 return strm.cache[strm:state()]
-end
