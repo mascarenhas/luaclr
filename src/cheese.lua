@@ -28,6 +28,17 @@ local function memoize(func)
       end
 end
 
+function char(c)
+	return memoize(funtion (strm)
+	 	local cc = strm:getc()
+		if cc == c then
+		   return cc
+		else
+		   return parse_error({tag = "char", stream = strm, class = args})
+		end
+	end)
+end
+
 function str(s)
 	 return memoize(function (strm)
 		local ss = strm:gets(string.len(s))
