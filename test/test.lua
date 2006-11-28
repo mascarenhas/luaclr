@@ -11,7 +11,7 @@ local foobar = parse.str("foobar")
 
 local parser = parse.choice(aei, foobar)
 
-local res = parser(stream.new("aei"))
+local ok, res = pcall(parser, stream.new("aei"))
 print(res)
 
 local res = parser(stream.new("foobar"))

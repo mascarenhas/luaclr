@@ -3,22 +3,34 @@
 module("cheese", package.seeall)
 
 local function parse_error(data)
-      return error("parse error", data)
+      return error(data)
+end
+
+local function memoize(func)
+      return function (strm)
+      	     local res = strm:memoized()
+	     if not res then
+	     	local state = strm:state()
+	     	res = func(strm)
+		strm:memoize(state, res)
+	     end
+	     return res
+      end
 end
 
 function str(s)
-	 return function (strm)
+	 return memoize(function (strm)
 		local ss = strm:gets(string.len(s))
 		if (not ss) or (s ~= ss) then
 		   return parse_error({tag = "string", stream = strm, string = s})
   	        end
 	     	return s
-	 end
+	 end)
 end
 
 function class(...)
 	 local args = {...}
-	 return function (strm)
+	 return memoize(function (strm)
 	 	local c = strm:getc()
 		if not c then
 		   return parse_error({tag = "class", stream = strm, class = args})
@@ -29,16 +41,16 @@ function class(...)
 		    end
 		end
 		return parse_error({tag = "class", stream = strm, class = args})
-	 end
+	 end)
 end
 
-any = function (strm)
+any = memoize(function (strm)
     return strm:getc()
-end
+end)
 
 function opt(exp)
-	 return function (strm)
-	 	local state = strm.state
+	 return memoize(function (strm)
+	 	local state = strm:state()
 	 	local ok, res = pcall(exp, strm)
 		if ok then
 		    return res
@@ -46,42 +58,42 @@ function opt(exp)
 		    strm:backtrack(state)
 		    return {}
 		end
-	 end
+	 end)
 end
 
 function star(exp)
-	 return function (strm)
+	 return memoize(function (strm)
 	 	local state
 	 	local list = {}
 	 	local ok, res = pcall(exp, strm)
 		while ok do
-		      table.insert(list, res)
-		      state = strm.state
+		      if #res > 0 then table.insert(list, res) end
+		      state = strm:state()
 		      ok, res = pcall(exp, strm)
 		end
 		strm:backtrack(state)
 		return list
-	 end
+	 end)
 end
 
 function plus(exp)
-	 return function (strm)
+	 return memoize(function (strm)
 	 	local state, ok
 	 	local list = {}
-		res = exp(strm)
+		local res = exp(strm)
 		repeat
-		    table.insert(list, res)
-		    state = strm.state
+		    if #res > 0 then table.insert(list, res) end
+		    state = strm:state()
 		    ok, res = pcall(exp, strm)
 		until not ok
 		strm:backtrack(state)
 		return list
-	end
+	end)
 end
 
 function pand(exp)
-	 return function (strm)
-	 	local state = strm.state
+	 return memoize(function (strm)
+	 	local state = strm:state()
 		local ok, res = pcall(exp, strm)
 		strm:backtrack(state)
 		if ok then
@@ -89,12 +101,12 @@ function pand(exp)
 		else
 		   return parse_error(res)
 		end
-	 end
+	 end)
 end
 
 function pnot(exp)
-	return function (strm)
-	 	local state = strm.state
+	return memoize(function (strm)
+	 	local state = strm:state()
 		local ok, res = pcall(exp, strm)
 		strm:backtrack(state)
 		if ok then
@@ -102,13 +114,13 @@ function pnot(exp)
 		else
 		   return {}
 		end
-	end
+	end)
 end
 
 function seq(...)
 	 local args = {...}
-	 return function (strm)
-	 	local state = strm.state
+	 return memoize(function (strm)
+	 	local state = strm:state()
 		local list = {}
 		for i, exp in ipairs(args) do
 		    local ok, res = pcall(exp, strm)
@@ -120,14 +132,14 @@ function seq(...)
 		    end
 		end
 		return list
-	 end
+	 end)
 end
 
 function choice(...)
 	 local args = {...}
-	 return function (strm)
+	 return memoize(function (strm)
 		for i, exp in ipairs(args) do
-		    local state = strm.state
+		    local state = strm:state()
 		    local ok, res = pcall(exp, strm)
 		    if ok then
 		       return res
@@ -135,11 +147,11 @@ function choice(...)
 		    strm:backtrack(state)
 		end
 		return parse_error({tag = "choice", stream = strm})
-	 end
+	 end)
 end
 
 function concat(exp)
-	 return function(strm)
+	 return function (strm)
 	 	local res = exp(strm)
 		if type(res) == "table" then
 		   return table.concat(res)
@@ -150,14 +162,14 @@ function concat(exp)
 end
 
 function skip(exp)
-	 return function(strm)
+	 return function (strm)
 	 	exp(strm)
 		return {}
 	 end
 end
 
 function bind(exp, func)
-	 return function(strm)
+	 return function (strm)
 	 	return func(exp(strm))
 	 end
 end
