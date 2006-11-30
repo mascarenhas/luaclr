@@ -173,14 +173,14 @@ function seq(...)
   end
   local args = {...}
   return memoize(function (strm)
-		   local state = strm:state()
+		   --local state = strm:state()
 		   local list = {}
 		   for i, exp in ipairs(args) do
 		     local ok, res = pcall(exp, strm)
 		     if ok then
 		       table.insert(list, res)
 		     else
-		       strm:backtrack(state)
+		       --strm:backtrack(state)
 		       return parse_error(res)
 		     end
 		   end

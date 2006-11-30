@@ -6,6 +6,7 @@ module("cheese.luap", package.seeall)
 -- Lexical definitions
 -- 
 
+EOF = cheese.pnot(cheese.any)
 ENDLINE = cheese.choice(cheese.str("\r\n"), cheese.char("\n"), cheese.char("\r"))
 SPACE = cheese.choice(cheese.char(" "), cheese.char("\t"), ENDLINE)
 COMMENT = cheese.seq(cheese.str("--"),
@@ -86,7 +87,7 @@ def_ops(ops)
 -- Escape codes
 
 function escape(str, code)
-  return cheese.bind(cheese.str(str), function (_) return code end)
+  return cheese.bind(cheese.str(str), function () return code end)
 end
 
 escapes = {
@@ -95,7 +96,7 @@ escapes = {
   ffeed = escape("\\f", "\f"),
   lfeed = cheese.bind(cheese.choice(cheese.str("\\n"),
 				    cheese.str("\\\n")),
-		      function (_) return "\n" end),	
+		      function () return "\n" end),	
   cr = escape("\\r", "\r"),
   htab = escape("\\t", "\t"),
   vtab = escape("\\v", "\v"),
@@ -432,10 +433,10 @@ Stat = cheese.lazy(function ()
 
 LastStat = cheese.bind(cheese.choice(cheese.seq(RETURN, ExpList1), cheese.concat(BREAK)),
 		       function (tree)
-			 if tree[1] == "break" then
+			 if tree == "break" then
 			   return { tag = "break" }
 			 else
-			   return { tag = "return", exps = tree[1][2] }
+			   return { tag = "return", exps = tree[2] }
 			 end
 		       end)
 
@@ -447,12 +448,12 @@ Block = cheese.bind(cheese.seq(cheese.star(cheese.seq(Stat, cheese.opt(SEMI))),
 			table.insert(chunk_node.stats, v[1])
 		      end
 		      if #tree[2] > 0 then
-			table.insert(chunk_node.stats, tree[2][1][1])
+			table.insert(chunk_node.stats, tree[2][1])
 		      end
 		      return chunk_node
 		    end)
 
-Chunk = cheese.bind(cheese.seq(SPACING, Block), function (tree) return tree[2] end)
+Chunk = cheese.bind(cheese.seq(SPACING, Block, EOF), function (tree) return tree[2] end)
 
 DoBlock = cheese.bind(cheese.seq(DO, Block, END), function (tree) return tree[2] end)
 

@@ -19,7 +19,7 @@ end
 function getc(strm)
 	 local current = strm.position
 	 if current > string.len(strm.str) then
-	    return nil
+	    return error("end of stream")
 	 else
 	    local c = string.sub(strm.str, current, current)
 	    strm.position = current + 1
@@ -31,7 +31,7 @@ end
 function gets(strm, l)
 	 local start, finish = strm.position, strm.position + l - 1
 	 if finish > string.len(strm.str) then
-	    return nil
+	    return error("end of stream")
 	 else
 	    strm.position = finish + 1
 	    local s = string.sub(strm.str, start, finish)
