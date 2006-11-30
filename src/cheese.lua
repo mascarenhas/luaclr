@@ -50,29 +50,29 @@ function lazy(thunk, ...)
 end
 
 function char(c)
-  return memoize(function (strm)
+  return function (strm)
 		   local cc = strm:getc()
 		   if cc == c then
 		     return cc
 		   else
 		     return parse_error({tag = "char", stream = strm, class = args})
 		   end
-	         end)
+		 	         end
 end
 
 function str(s)
-  return memoize(function (strm)
+  return function (strm)
 		   local ss = strm:gets(string.len(s))
 		   if (not ss) or (s ~= ss) then
 		     return parse_error({tag = "string", stream = strm, string = s})
 		   end
 		   return ss
-	         end)
+		 	         end
 end
 
 function class(...)
   local args = {...}
-  return memoize(function (strm)
+  return function (strm)
 		   local c = strm:getc()
 		   if not c then
 		     return parse_error({tag = "class", stream = strm, class = args})
@@ -83,18 +83,18 @@ function class(...)
 		     end
 		   end
 		   return parse_error({tag = "class", stream = strm, class = args})
-		 end)
+		 end
 end
 
-any = memoize(function (strm)
-		return strm:getc()
-	      end)
+any = function (strm)
+	return strm:getc()
+      end
 
 digit = class("0", "9")
 
 function opt(exp)
   if not exp then error("nil expression") end
-  return memoize(function (strm)
+  return (function (strm)
 		   local state = strm:state()
 		   local ok, res = pcall(exp, strm)
 		   if ok then
@@ -108,7 +108,7 @@ end
 
 function star(exp)
   if not exp then error("nil expression") end
-  return memoize(function (strm)
+  return (function (strm)
 		   local state = strm:state()
 		   local list = {}
 		   local ok, res = pcall(exp, strm)
@@ -124,7 +124,7 @@ end
 
 function plus(exp)
   if not exp then error("nil expression") end
-  return memoize(function (strm)
+  return function (strm)
 		   local state, ok
 		   local list = {}
 		   local res = exp(strm)
@@ -135,12 +135,12 @@ function plus(exp)
 		   until not ok
 		   strm:backtrack(state)
 		   return list
-		 end)
+		 end
 end
 
 function pand(exp)
   if not exp then error("nil expression") end
-  return memoize(function (strm)
+  return (function (strm)
 		   local state = strm:state()
 		   local ok, res = pcall(exp, strm)
 		   strm:backtrack(state)
@@ -154,7 +154,7 @@ end
 
 function pnot(exp)
   if not exp then error("nil expression") end
-  return memoize(function (strm)
+  return (function (strm)
 		   local state = strm:state()
 		   local ok, res = pcall(exp, strm)
 		   strm:backtrack(state)
@@ -172,7 +172,7 @@ function seq(...)
     if not select(i, ...) then error("nil expression") end
   end
   local args = {...}
-  return memoize(function (strm)
+  return (function (strm)
 		   --local state = strm:state()
 		   local list = {}
 		   for i, exp in ipairs(args) do
@@ -194,7 +194,7 @@ function choice(...)
     if not select(i, ...) then error("nil expression") end
   end
   local args = {...}
-  return memoize(function (strm)
+  return (function (strm)
 		   for i, exp in ipairs(args) do
 		     local state = strm:state()
 		     local ok, res = pcall(exp, strm)
