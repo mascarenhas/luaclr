@@ -8,7 +8,11 @@ end
 
 function flatten (tab)
   if type(tab) == "table" then
-    return table.concat(table.map(tab, flatten))
+    local res = {}
+    for i, l in ipairs(tab) do
+      res[i] = flatten(l)
+    end
+    return table.concat(res)
   else
     return tostring(tab)
   end
@@ -23,16 +27,16 @@ local function memoize(func)
 	   if not strm_cache then
 	     strm_cache = {}
 	     cache[strm] = strm_cache
-	     res = func(strm)
-	     strm_cache[state] = res	 
+	     res = { func(strm), strm:state() }
+	     strm_cache[state] = res
 	   else
 	     res = strm_cache[state] 
 	     if not res then
-	       res = func(strm)
+	       res = { func(strm), strm:state() }
 	       strm_cache[state] = res
-	     end
+	     else strm:backtrack(res[2]) end
 	   end
-	   return res
+	   return res[1]
          end
 end
 
@@ -41,7 +45,7 @@ function lazy(thunk, ...)
   local args = {...}
   return function (strm, clear)
 	   exp = (not clear and exp) or thunk(unpack(args))
-	   exp(strm)
+	   return exp(strm)
 	 end
 end
 
@@ -89,6 +93,7 @@ any = memoize(function (strm)
 digit = class("0", "9")
 
 function opt(exp)
+  if not exp then error("nil expression") end
   return memoize(function (strm)
 		   local state = strm:state()
 		   local ok, res = pcall(exp, strm)
@@ -96,14 +101,15 @@ function opt(exp)
 		     return res
 		   else
 		     strm:backtrack(state)
-		     return nil
+		     return {}
 		   end
 	         end)
 end
 
 function star(exp)
+  if not exp then error("nil expression") end
   return memoize(function (strm)
-		   local state
+		   local state = strm:state()
 		   local list = {}
 		   local ok, res = pcall(exp, strm)
 		   while ok do
@@ -117,6 +123,7 @@ function star(exp)
 end
 
 function plus(exp)
+  if not exp then error("nil expression") end
   return memoize(function (strm)
 		   local state, ok
 		   local list = {}
@@ -132,12 +139,13 @@ function plus(exp)
 end
 
 function pand(exp)
+  if not exp then error("nil expression") end
   return memoize(function (strm)
 		   local state = strm:state()
 		   local ok, res = pcall(exp, strm)
 		   strm:backtrack(state)
 		   if ok then
-		     return nil
+		     return {}
 		   else
 		     return parse_error(res)
 		   end
@@ -145,6 +153,7 @@ function pand(exp)
 end
 
 function pnot(exp)
+  if not exp then error("nil expression") end
   return memoize(function (strm)
 		   local state = strm:state()
 		   local ok, res = pcall(exp, strm)
@@ -152,12 +161,16 @@ function pnot(exp)
 		   if ok then
 		     return parse_error({tag = "not", stream = strm})
 		   else
-		     return nil
+		     return {}
 		   end
 	         end)
 end
 
 function seq(...)
+  if select("#", ...) < 2 then error("sequence with too few elements") end
+  for i = 1, select("#", ...) do
+    if not select(i, ...) then error("nil expression") end
+  end
   local args = {...}
   return memoize(function (strm)
 		   local state = strm:state()
@@ -176,6 +189,10 @@ function seq(...)
 end
 
 function choice(...)
+  if select("#", ...) < 2 then error("sequence with too few elements") end
+  for i = 1, select("#", ...) do
+    if not select(i, ...) then error("nil expression") end
+  end
   local args = {...}
   return memoize(function (strm)
 		   for i, exp in ipairs(args) do
@@ -191,6 +208,7 @@ function choice(...)
 end
 
 function concat(exp)
+  if not exp then error("nil expression") end
   return function (strm)
 	   local res = exp(strm)
 	   return flatten(res)
@@ -198,13 +216,15 @@ function concat(exp)
 end
 
 function skip(exp)
+  if not exp then error("nil expression") end
   return function (strm)
 	   exp(strm)
-	   return nil
+	   return {}
 	 end
 end
 
 function bind(exp, func)
+  if not exp then error("nil expression") end
   return function (strm)
 	   return func(exp(strm))
 	 end

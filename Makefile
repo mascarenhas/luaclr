@@ -11,13 +11,20 @@ install:
 	cp src/cheese.lua $(LUA_MODULE_DIR)
 	mkdir -p $(LUA_MODULE_DIR)/stream
 	cp src/stream/*.lua $(LUA_MODULE_DIR)/stream
+	mkdir -p $(LUA_MODULE_DIR)/cheese
+	cp src/luap/luap.lua $(LUA_MODULE_DIR)/cheese
 	cp bin/struct.so $(LUA_LIB_DIR)
 
 uninstall:
 	rm -f $(LUA_MODULE_DIR)/cheese.lua
+	rm -rf $(LUA_MODULE_DIR)/cheese
 	rm -rf $(LUA_MODULE_DIR)/stream
 	rm -f $(LUA_LIB_DIR)/struct.so
 
 clean:
 	rm -f bin/*
 	rm -f src/struct/struct.o
+
+test: install
+	cd test && lua51 parse.lua && cd ..
+
