@@ -2,7 +2,7 @@
 
 module("cheese", package.seeall)
 
-local function parse_error(data)
+function parse_error(data)
   return error(data)
 end
 
@@ -159,7 +159,7 @@ function pnot(exp)
 		   local ok, res = pcall(exp, strm)
 		   strm:backtrack(state)
 		   if ok then
-		     return parse_error({tag = "not", stream = strm})
+		     return parse_error({tag = "not", stream = strm })
 		   else
 		     return {}
 		   end
@@ -227,6 +227,14 @@ function bind(exp, func)
   if not exp then error("nil expression") end
   return function (strm)
 	   return func(exp(strm))
+	 end
+end
+
+function handle(exp, func)
+  if not exp then error("nil expression") end
+  return function (strm)
+	   local ok, res = pcall(exp, strm)
+   	   if ok then return res else return func(res) end
 	 end
 end
 

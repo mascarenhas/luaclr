@@ -17,7 +17,8 @@ file:close()
 
 local strm = stream.new(str)
 local ok, res = pcall(parser.Chunk, strm)
-print(res)
+
+print(prettytostring(res))
 if not ok then
   print(string.sub(res.stream.str, res.stream.position, res.stream.position+20))
 end
