@@ -439,7 +439,7 @@ Stat = cheese.lazy(function ()
 					  LocalFuncDef, LocalDef)
 		   end)
 
-LastStat = cheese.bind(cheese.choice(cheese.seq(RETURN, ExpList1), cheese.concat(BREAK)),
+LastStat = cheese.bind(cheese.choice(cheese.seq(RETURN, cheese.opt(ExpList1)), cheese.concat(BREAK)),
 		       function (tree)
 			 if tree == "break" then
 			   return { tag = "break" }
