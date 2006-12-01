@@ -18,7 +18,7 @@ NAME_CHARS = cheese.class("_", "_", "a", "z", "A", "Z", "0", "9")
 -- Keywords
 
 function keyword(str)
-  _G[string.upper(str)] = cheese.seq(cheese.str(str), cheese.pnot(NAME_CHARS), SPACING)
+  _M[string.upper(str)] = cheese.seq(cheese.str(str), cheese.pnot(NAME_CHARS), SPACING)
 end
 
 keyword_tab = {}
@@ -41,9 +41,9 @@ keywords("and", "break", "do", "else", "elseif", "end", "false", "for", "functio
 
 function op(name, str)
   if string.len(str) == 1 then
-    _G[string.upper(name)] = cheese.seq(cheese.char(str), SPACING)
+    _M[string.upper(name)] = cheese.seq(cheese.char(str), SPACING)
   else
-    _G[string.upper(name)] = cheese.seq(cheese.str(str), SPACING)
+    _M[string.upper(name)] = cheese.seq(cheese.str(str), SPACING)
   end
 end
 
@@ -191,13 +191,13 @@ PrecClasses = {
 
 function gen_expr(prec)
   if prec > #PrecClasses then
-    _G["Exp_" .. prec] = cheese.lazy(function () return SimpleExp end)
+    _M["Exp_" .. prec] = cheese.lazy(function () return SimpleExp end)
   else
     gen_expr(prec + 1)
     local function expr()
       if PrecClasses[prec].unary then
 	return cheese.bind(cheese.seq(cheese.star(cheese.choice(unpack(PrecClasses[prec]))),
-				      _G["Exp_" .. (prec + 1)]),
+				      _M["Exp_" .. (prec + 1)]),
 			   function (tree)
 			     if #tree[1] == 0 then return tree[2] end
 			     local node = { tag = "unop", op = cheese.flatten(tree[1][1]) }
@@ -216,9 +216,9 @@ function gen_expr(prec)
 	else
 	  operator = cheese.choice(unpack(PrecClasses[prec])) 
         end
-	return cheese.bind(cheese.seq(_G["Exp_" .. (prec + 1)],
+	return cheese.bind(cheese.seq(_M["Exp_" .. (prec + 1)],
 				      cheese.star(cheese.seq(operator,
-							     _G["Exp_" .. (prec + 1)]))),
+							     _M["Exp_" .. (prec + 1)]))),
 			   function (tree)
 			     if #tree[2] == 0 then return tree[1] end
 			     if PrecClasses[prec].right then
@@ -247,7 +247,7 @@ function gen_expr(prec)
 			   end)
       end
     end
-    _G["Exp_" .. prec] = expr()
+    _M["Exp_" .. prec] = expr()
   end
 end
 
@@ -389,7 +389,7 @@ AnonFunction = cheese.bind(cheese.seq(FUNCTION, FuncBody),
 
 SimpleExp = cheese.choice(NUMBER, STRING, cheese.concat(NIL), cheese.concat(TRUE),
 			  cheese.concat(FALSE), cheese.concat(ELLIPSE),
-			  Constructor, AnonFunction, PrimaryExp)
+			  Constructor, AnonFunction, FunctionCall, PrimaryExp)
 
 NameList = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(COMMA, NAME))),
 		       function (tree)
@@ -426,7 +426,6 @@ Var = cheese.bind(PrimaryExp,
 
 VarList1 = cheese.bind(cheese.seq(Var, cheese.star(cheese.seq(COMMA, Var))),
 		       function (tree)
-			 if #tree[2] == 0 then return tree[1] end
 			 local varlist_node = { tree[1] }
 			 for _, v in ipairs(tree[2]) do
 			   table.insert(varlist_node, v[2])
@@ -486,7 +485,7 @@ If = cheese.bind(cheese.seq(IF, Exp, THEN, Block,
 		     table.insert(if_node.clauses, { cond = v[2], block = v[4] })
 		   end
 		   if #tree[6] > 0 then
-		     if_node.block_else = tree[6][1][2]
+		     if_node.block_else = tree[6][2]
 		   end
 		   return if_node
 	         end)
@@ -496,7 +495,7 @@ NumFor = cheese.bind(cheese.seq(FOR, NAME, ASSIGN, Exp, COMMA, Exp,
 		     function (tree)
 		       local for_node = { tag = "nfor", var = tree[2].val, start = tree[4],
 			 finish = tree[6], block = tree[9] }
-		       if #tree[7] > 0 then for_node.step = tree[7][1][2] end
+		       if #tree[7] > 0 then for_node.step = tree[7][2] end
 		       return for_node
 		     end)
 
@@ -519,7 +518,7 @@ LocalFuncDef = cheese.bind(cheese.seq(LOCAL, FUNCTION, NAME, FuncBody),
 LocalDef = cheese.bind(cheese.seq(LOCAL, NameList, cheese.opt(cheese.seq(ASSIGN, ExpList1))),
 		       function (tree)
 			 local locdef_node = { tag = "local", names = tree[2] }
-			 if #tree[3] > 0 then locdef_node.exps = tree[3][1][2] end
+			 if #tree[3] > 0 then locdef_node.exps = tree[3][2] end
 			 return locdef_node
 		       end)
 

@@ -4,8 +4,8 @@ module("cheese.luap.dump", package.seeall)
 
 function dump(tree, level)
   level = level or 0
-  if type(tree) == "table" then
-    return _G["dump_" .. tree.tag](tree, level)
+  if type(tree) == "table" and tree.tag then
+    return _M["dump_" .. tree.tag](tree, level)
   else
     return string.rep(" ", level) .. tostring(tree)
   end
@@ -56,6 +56,7 @@ function dump_if(sif, level)
     table.insert(out, dump_block(clause.block, level + 2))
   end
   if sif.block_else then
+    table.insert(out, string.rep(" ", level) .. "else")
     table.insert(out, dump_block(sif.block_else, level + 2))
   end
   table.insert(out, string.rep(" ", level) .. "end")
@@ -80,7 +81,7 @@ function dump_nfor(snfor, level)
   end
   table.insert(out, string.rep(" ", level) .. "for " ..
 	       dump(snfor.var) .. "=" .. dump(snfor.start) ..
-		 "," .. dump(dnfor.finish) .. step .. " do")
+		 "," .. dump(snfor.finish) .. step .. " do")
   table.insert(out, dump_block(snfor.block, level + 2))
   table.insert(out, string.rep(" ", level) .. "end")
   return table.concat(out, "\n")
@@ -113,7 +114,7 @@ end
 function dump_local(slocal, level)
   level = level or 0
   local exps = ""
-  if sclocal.exps then exps = " = " .. dump_list(slocal.exps) end
+  if slocal.exps then exps = " = " .. dump_list(slocal.exps) end
   return string.rep(" ", level) .. "local " .. 
     dump_list(slocal.names) .. exps
 end
@@ -130,7 +131,7 @@ end
 
 function dump_return(sreturn, level)
   level = level or 0
-  return string.rep(" ", level) .. "return " .. dump_list(sassign.exps)
+  return string.rep(" ", level) .. "return " .. dump_list(sreturn.exps)
 end
 
 function dump_list(list, level, break_n)
@@ -151,7 +152,11 @@ function dump_var(svar, level)
   level = level or 0
   table.insert(out, dump(svar.prefix, level))
   for _, item in ipairs(svar.indexes) do
-    table.insert(out, dump(item, level))
+    if item.tag then
+      table.insert(out, dump(item, level))
+    else
+      table.insert(out,"(" .. dump_list(item, level) .. ")") 
+    end
   end
   return table.concat(out)
 end
@@ -199,7 +204,7 @@ end
 
 function dump_constructor(cons, level)
   level = level or 0
-  return "{ " .. dump_list(cons.fields, level, 4), " }" 
+  return "{ " .. dump_list(cons.fields, level+2, 4) .. " }" 
 end
 
 function dump_namefield(namefield, level)
@@ -216,7 +221,7 @@ end
 function dump_funcname(funcname, level)
   level = level or 0
   local indexes = table.concat(funcname.indexes, ".")
-  if indexes then indexes = "." .. indexes end
+  if #funcname.indexes>0 then indexes = "." .. indexes end
   local self = ""
   if funcname.self then self = ":" .. funcname.self end
   return funcname.var.val .. indexes .. self
@@ -224,7 +229,9 @@ end
 
 function dump_binop(binop, level)
   level = level or 0
-  return "(" .. dump(binop.left, level) .. binop.op .. 
+  local op = binop.op
+  if op == "and" or op == "or" then op = " " .. op .. " " end
+  return "(" .. dump(binop.left, level) .. op .. 
     dump(binop.right, level) .. ")"
 end
 

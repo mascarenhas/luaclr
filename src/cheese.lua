@@ -160,7 +160,7 @@ function pnot(exp)
 		   local ok, res = pcall(exp, strm)
 		   strm:backtrack(state)
 		   if ok then
-		     return error("predicate not")
+		     return parse_error("predicate not", strm)
 		   else
 		     return {}
 		   end
