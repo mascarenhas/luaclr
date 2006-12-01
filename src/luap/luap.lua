@@ -280,11 +280,11 @@ Exp = Exp_1
 FuncName = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(DOT, NAME)),
 				  cheese.opt(cheese.seq(COLON, NAME))),
 		       function (tree)
-			 local funcname_node = { tag = "funcname", names = { tree[1] } }
+			 local funcname_node = { tag = "funcname", var = tree[1], indexes = {} }
 			 for _, v in ipairs(tree[2]) do
-			   table.insert(funcname_node.names, v[2])
+			   table.insert(funcname_node.indexes, v[2].val)
 			 end
-		       	 if #tree[3]>0 then funcname_node.self = tree[3][1][2] end
+		       	 if #tree[3]>0 then funcname_node.self = tree[3][1][2].val end
 			 return funcname_node
 		       end)
 

@@ -133,11 +133,15 @@ function dump_return(sreturn, level)
   return string.rep(" ", level) .. "return " .. dump_list(sassign.exps)
 end
 
-function dump_list(list, level)
+function dump_list(list, level, break_n)
   local out = {}
   level = level or 0
-  for _, item in ipairs(list) do
-    table.insert(out, dump(item, level))
+  for i, item in ipairs(list) do
+    local br = ""
+    if break_n and (i % break_n) == 0 then
+      br = "\n" .. string.rep(" ", level)
+    end
+    table.insert(out, br .. dump(item, level))
   end
   return table.concat(out, ",")
 end
@@ -158,12 +162,76 @@ function dump_call(scall, level)
   local method = ""
   if scall.method then method = ":" .. scall.method end
   return string.rep(" ", level) .. dump_var(scall, level) ..
-    method .. "(" .. dump_list(scall.args) .. ")"
+    method .. "(" .. dump_list(scall.args, level) .. ")"
 end
 
 function dump_primaryexp(pexp, level)
+  level = level or 0
   return dump_var(pexp, level)
 end
 
 function dump_method(mcall, level)
+  level = level or 0
+  return string.rep(" ", level) .. ":" .. mcall.method .. "(" ..
+    dump_list(mcall.args, level) .. ")"
 end
+
+function dump_name(name, level)
+  return name.val
+end
+
+function dump_string(s, level)
+  return string.format("%q", s.val)
+end
+
+function dump_number(n, level)
+  return tostring(n.val)
+end
+
+function dump_expindex(expindex, level)
+  level = level or 0
+  return "[" .. dump(expindex.exp, level) .. "]"
+end
+
+function dump_nameindex(nameindex, level)
+  return "." .. nameindex.name
+end
+
+function dump_constructor(cons, level)
+  level = level or 0
+  return "{ " .. dump_list(cons.fields, level, 4), " }" 
+end
+
+function dump_namefield(namefield, level)
+  level = level or 0
+  return namefield.name .. "=" .. dump(namefield.exp, level)
+end
+
+function dump_indexfield(indexfield, level)
+  level = level or 0
+  return "[" .. dump(indexfield.name, level) .. "]=" .. 
+    dump(indexfield.exp, level)
+end
+
+function dump_funcname(funcname, level)
+  level = level or 0
+  local indexes = table.concat(funcname.indexes, ".")
+  if indexes then indexes = "." .. indexes end
+  local self = ""
+  if funcname.self then self = ":" .. funcname.self end
+  return funcname.var.val .. indexes .. self
+end
+
+function dump_binop(binop, level)
+  level = level or 0
+  return "(" .. dump(binop.left, level) .. binop.op .. 
+    dump(binop.right, level) .. ")"
+end
+
+function dump_unop(unop, level)
+  level = level or 0
+  local op = unop.op
+  if op == "not" then op = "not " end
+  return op .. dump(unop.operand, level)
+end
+
