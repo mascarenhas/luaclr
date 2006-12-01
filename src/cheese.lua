@@ -228,7 +228,7 @@ function bind(exp, func, log_errors)
   if not exp then error("nil expression") end
   return function (strm)
 	   local tree = exp(strm)
-	   local ok, res = pcall(func, tree)
+	   local ok, res = pcall(func, tree, strm)
 	   if ok then return res end
 	   if log_errors then strm:log_error(res) end
 	   return cheese.parse_error(res, strm)	   

@@ -9,9 +9,19 @@ module("cheese.luap", package.seeall)
 EOF = cheese.pnot(cheese.any)
 ENDLINE = cheese.choice(cheese.str("\r\n"), cheese.char("\n"), cheese.char("\r"))
 SPACE = cheese.choice(cheese.char(" "), cheese.char("\t"), ENDLINE)
-COMMENT = cheese.seq(cheese.str("--"),
+LONG_COMMENT = cheese.bind(cheese.concat(cheese.seq(cheese.str("--["), cheese.star(cheese.char("=")), cheese.char("["))),
+			  function (bracket, strm)
+			    local level = string.len(bracket) - 4
+			    local close_bracket = cheese.seq(cheese.char("]"), cheese.str(string.rep("=", level)),
+							     cheese.char("]"))
+			    local eat_comment = cheese.skip(cheese.seq(cheese.star(cheese.seq(cheese.pnot(close_bracket),
+							cheese.any)), cheese.opt(close_bracket)))
+			    return eat_comment(strm)
+			  end)
+SHORT_COMMENT = cheese.seq(cheese.str("--"),
 		     cheese.star(cheese.seq(cheese.pnot(ENDLINE), cheese.any)),
-		     ENDLINE)
+		     cheese.choice(ENDLINE, EOF))
+COMMENT = cheese.choice(LONG_COMMENT, SHORT_COMMENT)
 SPACING = cheese.skip(cheese.star(cheese.choice(SPACE, COMMENT)))
 NAME_CHARS = cheese.class("_", "_", "a", "z", "A", "Z", "0", "9")
 
@@ -144,20 +154,45 @@ SQUOTE_STRING = cheese.seq(cheese.skip(cheese.char("\'")),
 								cheese.any))),
 			   cheese.skip(cheese.char("\'")))
 
-STRING = cheese.bind(cheese.concat(cheese.seq(
+SHORT_STRING = cheese.bind(cheese.concat(cheese.seq(
 					      cheese.choice(SQUOTE_STRING, DQUOTE_STRING),
 					      SPACING)),
 		     function (str) return { tag = "string", val = str } end)
 
-DECIMAL = cheese.plus(cheese.digit)
+LONG_STRING = cheese.bind(cheese.concat(cheese.seq(cheese.char("["), cheese.star(cheese.char("=")), cheese.char("["))),
+			  function (bracket, strm)
+			    local level = string.len(bracket) - 2
+			    local close_bracket = cheese.seq(cheese.char("]"), cheese.str(string.rep("=", level)),
+							     cheese.char("]"))
+			    local ischar
+			    local rest_string = {}
+			    repeat
+			      ischar = pcall(cheese.pnot(close_bracket), strm)
+			      if ischar then table.insert(rest_string, strm:getc()) end
+			    until not ischar
+			    close_bracket(strm)
+			    SPACING(strm)
+			    if rest_string[1] == "\n" then rest_string[1] = "" end
+			    return { tag = "string", val = table.concat(rest_string) }
+			  end)
+
+STRING = cheese.choice(SHORT_STRING, LONG_STRING)
+
+DEC_DIGITS = cheese.plus(cheese.digit)
+
+HEXA_DIGITS = cheese.class("a", "f", "A", "F", "0", "9")
+
+HEXA_NUMBER = cheese.seq(cheese.str("0x"), cheese.plus(HEXA_DIGITS), SPACING)
 
 SIGN = cheese.opt(cheese.char("-"))
 
-EXPONENT = cheese.seq(cheese.choice(cheese.char("e"), cheese.char("E")), SIGN, DECIMAL)
+EXPONENT = cheese.seq(cheese.choice(cheese.char("e"), cheese.char("E")), SIGN, DEC_DIGITS)
 
-NUMBER = cheese.bind(cheese.concat(cheese.seq(DECIMAL,
-					      cheese.opt(cheese.seq(cheese.char("."), DECIMAL)),
-					      cheese.opt(EXPONENT), SPACING)),
+DEC_NUMBER = cheese.seq(DEC_DIGITS,
+			cheese.opt(cheese.seq(cheese.char("."), DEC_DIGITS)),
+			cheese.opt(EXPONENT), SPACING)
+
+NUMBER = cheese.bind(cheese.concat(cheese.choice(HEXA_NUMBER, DEC_NUMBER)),
 		     function (str) return { tag = "number", val = tonumber(str) } end)
 
 LITERAL = cheese.choice(NUMBER, STRING)
@@ -293,7 +328,7 @@ NameField = cheese.bind(cheese.seq(NAME, ASSIGN, Exp),
 			  return { tag = "namefield", name = tree[1].val, exp = tree[3] }
 			end)
 
-IndexField = cheese.bind(cheese.seq(LBRA, Exp, RBRA, EQ, Exp),
+IndexField = cheese.bind(cheese.seq(LBRA, Exp, RBRA, ASSIGN, Exp),
 			 function (tree)
 			   return { tag = "indexfield", name = tree[2], exp = tree[5] }
 			 end)

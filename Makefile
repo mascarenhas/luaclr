@@ -28,5 +28,5 @@ clean:
 	rm -f src/struct/struct.o
 
 test: install
-	cd test && lua51 parse.lua && cd ..
+	cd test && cat test-files | xargs lua51 parse.lua && cd ..
 
