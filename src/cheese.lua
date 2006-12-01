@@ -2,8 +2,9 @@
 
 module("cheese", package.seeall)
 
-function parse_error(data)
-  return error(data)
+function parse_error(message, strm)
+  local err_data = { msg = message, state = strm:state() }
+  return error(err_data)
 end
 
 function flatten (tab)
@@ -55,16 +56,16 @@ function char(c)
 		   if cc == c then
 		     return cc
 		   else
-		     return parse_error({tag = "char", stream = strm, class = args})
+		     return parse_error("character match", strm)
 		   end
-		 	         end
+		 end
 end
 
 function str(s)
   return function (strm)
 		   local ss = strm:gets(string.len(s))
 		   if (not ss) or (s ~= ss) then
-		     return parse_error({tag = "string", stream = strm, string = s})
+		     return parse_error("string match", strm)
 		   end
 		   return ss
 		 	         end
@@ -75,14 +76,14 @@ function class(...)
   return function (strm)
 		   local c = strm:getc()
 		   if not c then
-		     return parse_error({tag = "class", stream = strm, class = args})
+		     return parse_error("character match", strm)
 		   end
 		   for i = 1, #args, 2 do
 		     if (c >= args[i]) and (c <= args[i+1]) then
 		       return c
 		     end
 		   end
-		   return parse_error({tag = "class", stream = strm, class = args})
+		   return parse_error("character match", strm)
 		 end
 end
 
@@ -147,7 +148,7 @@ function pand(exp)
 		   if ok then
 		     return {}
 		   else
-		     return parse_error(res)
+		     return error(res)
 		   end
 	         end)
 end
@@ -159,7 +160,7 @@ function pnot(exp)
 		   local ok, res = pcall(exp, strm)
 		   strm:backtrack(state)
 		   if ok then
-		     return parse_error({tag = "not", stream = strm })
+		     return error("predicate not")
 		   else
 		     return {}
 		   end
@@ -181,7 +182,7 @@ function seq(...)
 		       table.insert(list, res)
 		     else
 		       --strm:backtrack(state)
-		       return parse_error(res)
+		       return error(res)
 		     end
 		   end
 		   return list
@@ -203,7 +204,7 @@ function choice(...)
 		     end
 		     strm:backtrack(state)
 		   end
-	           return parse_error({tag = "choice", stream = strm})
+	           return parse_error("no valid alternatives", strm)
 		 end)
 end
 
@@ -223,18 +224,23 @@ function skip(exp)
 	 end
 end
 
-function bind(exp, func)
+function bind(exp, func, log_errors)
   if not exp then error("nil expression") end
   return function (strm)
-	   return func(exp(strm))
+	   local tree = exp(strm)
+	   local ok, res = pcall(func, tree)
+	   if ok then return res end
+	   if log_errors then strm:log_error(res) end
+	   return cheese.parse_error(res, strm)	   
 	 end
 end
 
 function handle(exp, func)
   if not exp then error("nil expression") end
+  func = func or function (strm, err) strm:log_error(err); error(err) end
   return function (strm)
 	   local ok, res = pcall(exp, strm)
-   	   if ok then return res else return func(res) end
+   	   if ok then return res else return func(strm, res) end
 	 end
 end
 

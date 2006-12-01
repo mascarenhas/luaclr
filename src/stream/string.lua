@@ -13,7 +13,18 @@ end
 
 function new(str)
 	 return { str = str, position = 1, line = 1, getc = getc, backtrack = backtrack,
-	   gets = gets, state = state }
+	   gets = gets, state = state, errors = {} }
+end
+
+function log_error(strm, err)
+  local err_data
+  if type(err) == "table" then
+    local position, line = struct.unpack("ii", err.state)
+    err_data = { msg = err.msg, position = position, line = line }
+  else
+    err_data = { msg = err, position = strm.position, line = strm.line }
+  end
+  table.insert(strm.errors, err_data)
 end
 
 function getc(strm)

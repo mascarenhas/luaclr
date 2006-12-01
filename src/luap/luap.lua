@@ -360,9 +360,9 @@ PrimaryExp = cheese.bind(cheese.seq(PrefixExp,
 FunctionCall = cheese.bind(PrimaryExp,
 			   function (pexp)
 			     local indexes = pexp.indexes
-			     if indexes and indexes[#indexes].tag and 
-			        indexes[#indexes].tag ~= "method" then
-			       return cheese.parse_error("not a function call")
+			     if (not indexes) or (indexes[#indexes].tag and 
+			        indexes[#indexes].tag ~= "method") then
+			       return error("not a function call")
        			     else
 			       pexp.tag = "call"
 			       if indexes[#indexes].tag then
@@ -399,7 +399,7 @@ NameList = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(COMMA, NAME))),
 			   table.insert(namelist_node, v[2])
 			 end
 		         return namelist_node
-		       end)
+		       end, true)
 
 ParList1 = cheese.bind(cheese.choice(cheese.seq(NameList,
 						cheese.opt(cheese.seq(COMMA, ELLIPSE))),
@@ -410,7 +410,7 @@ ParList1 = cheese.bind(cheese.choice(cheese.seq(NameList,
 			   tree[1].varargs = true
 			 end
 			 return tree[1]
-		       end)
+		       end, true)
 
 Var = cheese.bind(PrimaryExp,
 		  function (pexp)
@@ -420,9 +420,9 @@ Var = cheese.bind(PrimaryExp,
 		      pexp.tag = "var"		  
 		      return pexp 
       		    else
-		      return cheese.parse_error("invalid lvalue")
+		      return error("invalid lvalue")
 		    end
-		  end)
+		  end, true)
 
 VarList1 = cheese.bind(cheese.seq(Var, cheese.star(cheese.seq(COMMA, Var))),
 		       function (tree)
@@ -432,18 +432,13 @@ VarList1 = cheese.bind(cheese.seq(Var, cheese.star(cheese.seq(COMMA, Var))),
 			   table.insert(varlist_node, v[2])
 			 end
 		         return varlist_node
-		       end)
+		     end, true)
 
-Stat = cheese.handle(cheese.lazy(function ()
+Stat = cheese.lazy(function ()
 		     return cheese.choice(FunctionCall, Assignment, DoBlock, While,
 					  Repeat, If, NumFor, GenFor, FuncDef,
 					  LocalFuncDef, LocalDef)
-		   end), function (err) 
-			   error(err)
-			   --print(err)
-			   --print(string.sub(err.stream.str, err.stream.position, err.stream.position + 20))
-			   --os.exit()
-			 end)
+		   end)
 
 LastStat = cheese.bind(cheese.choice(cheese.seq(RETURN, ExpList1), cheese.concat(BREAK)),
 		       function (tree)
@@ -452,7 +447,7 @@ LastStat = cheese.bind(cheese.choice(cheese.seq(RETURN, ExpList1), cheese.concat
 			 else
 			   return { tag = "return", exps = tree[2] }
 			 end
-		       end)
+		       end, true)
 
 Block = cheese.bind(cheese.seq(cheese.star(cheese.seq(Stat, cheese.opt(SEMI))),
 			       cheese.opt(cheese.seq(LastStat, cheese.opt(SEMI)))),
