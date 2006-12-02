@@ -12,6 +12,7 @@ install:
 	mkdir -p $(LUA_MODULE_DIR)/stream
 	cp src/stream/*.lua $(LUA_MODULE_DIR)/stream
 	mkdir -p $(LUA_MODULE_DIR)/cheese
+	cp src/parsers.lua $(LUA_MODULE_DIR)/cheese
 	cp src/luap/luap.lua $(LUA_MODULE_DIR)/cheese
 	mkdir -p $(LUA_MODULE_DIR)/cheese/luap
 	cp src/luap/dump.lua $(LUA_MODULE_DIR)/cheese/luap

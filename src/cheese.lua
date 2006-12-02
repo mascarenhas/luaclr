@@ -1,13 +1,19 @@
 -- Cheese: a PEG parser generator for Lua, in Lua
 
+local cheese_parsers = require"cheese.parsers"
+
 module("cheese", package.seeall)
 
-function parse_error(message, strm)
-  local err_data = { msg = message, state = strm:state() }
-  return error(err_data)
+parse_error = cheese_parsers.parse_error
+
+local rule_mt
+
+local function make_rule(tab)
+  setmetatable(tab, rule_mt)
+  return tab
 end
 
-function flatten (tab)
+function concat (tab)
   if type(tab) == "table" then
     local res = {}
     for i, l in ipairs(tab) do
@@ -19,238 +25,228 @@ function flatten (tab)
   end
 end
 
-local function memoize(func)
-  local cache = {}
-  return function (strm)
-	   local state = strm:state()
-	   local strm_cache = cache[strm]
-	   local res
-	   if not strm_cache then
-	     strm_cache = {}
-	     cache[strm] = strm_cache
-	     res = { func(strm), strm:state() }
-	     strm_cache[state] = res
-	   else
-	     res = strm_cache[state] 
-	     if not res then
-	       res = { func(strm), strm:state() }
-	       strm_cache[state] = res
-	     else strm:backtrack(res[2]) end
-	   end
-	   return res[1]
-         end
-end
-
-function lazy(thunk, ...)
-  local exp
-  local args = {...}
-  return function (strm, clear)
-	   exp = (not clear and exp) or thunk(unpack(args))
-	   return exp(strm)
-	 end
+function skip(exp)
+  return {}
 end
 
 function char(c)
-  return function (strm)
-		   local cc = strm:getc()
-		   if cc == c then
-		     return cc
-		   else
-		     return parse_error("character match", strm)
-		   end
-		 end
-end
-
-function str(s)
-  return function (strm)
-		   local ss = strm:gets(string.len(s))
-		   if (not ss) or (s ~= ss) then
-		     return parse_error("string match", strm)
-		   end
-		   return ss
-		 	         end
+  return make_rule{ tag = "char", char = c }
 end
 
 function class(...)
-  local args = {...}
-  return function (strm)
-		   local c = strm:getc()
-		   if not c then
-		     return parse_error("character match", strm)
-		   end
-		   for i = 1, #args, 2 do
-		     if (c >= args[i]) and (c <= args[i+1]) then
-		       return c
-		     end
-		   end
-		   return parse_error("character match", strm)
-		 end
+  return make_rule{ tag = "class", ranges = {...} }
 end
 
-any = function (strm)
-	return strm:getc()
-      end
-
-digit = class("0", "9")
-
-function opt(exp)
-  if not exp then error("nil expression") end
-  return (function (strm)
-		   local state = strm:state()
-		   local ok, res = pcall(exp, strm)
-		   if ok then
-		     return res
-		   else
-		     strm:backtrack(state)
-		     return {}
-		   end
-	         end)
+function str(s)
+  return make_rule{ tag = "string", str = s }
 end
 
-function star(exp)
-  if not exp then error("nil expression") end
-  return (function (strm)
-		   local state = strm:state()
-		   local list = {}
-		   local ok, res = pcall(exp, strm)
-		   while ok do
-		     table.insert(list, res)
-		     state = strm:state()
-		     ok, res = pcall(exp, strm)
-		   end
-		   strm:backtrack(state)
-		   return list
-		 end)
+function opt(rule)
+  if rule.tag == "opt" then return rule end
+  return make_rule{ tag = "opt", rule = rule }
 end
 
-function plus(exp)
-  if not exp then error("nil expression") end
-  return function (strm)
-		   local state, ok
-		   local list = {}
-		   local res = exp(strm)
-		   repeat
-		     table.insert(list, res)
-		     state = strm:state()
-		     ok, res = pcall(exp, strm)
-		   until not ok
-		   strm:backtrack(state)
-		   return list
-		 end
+function pand(rule)
+  if rule.tag == "and" then return rule end
+  return make_rule{ tag = "and", rule = rule }
 end
 
-function pand(exp)
-  if not exp then error("nil expression") end
-  return (function (strm)
-		   local state = strm:state()
-		   local ok, res = pcall(exp, strm)
-		   strm:backtrack(state)
-		   if ok then
-		     return {}
-		   else
-		     return error(res)
-		   end
-	         end)
-end
-
-function pnot(exp)
-  if not exp then error("nil expression") end
-  return (function (strm)
-		   local state = strm:state()
-		   local ok, res = pcall(exp, strm)
-		   strm:backtrack(state)
-		   if ok then
-		     return parse_error("predicate not", strm)
-		   else
-		     return {}
-		   end
-	         end)
-end
-
-function seq(...)
-  if select("#", ...) < 2 then error("sequence with too few elements") end
-  for i = 1, select("#", ...) do
-    if not select(i, ...) then error("nil expression") end
+function pnot(rule)
+  if rule.tag == "not" then
+    return make_rule{ tag = "and", rule = rule.rule }
   end
-  local args = {...}
-  return (function (strm)
-		   --local state = strm:state()
-		   local list = {}
-		   for i, exp in ipairs(args) do
-		     local ok, res = pcall(exp, strm)
-		     if ok then
-		       table.insert(list, res)
-		     else
-		       --strm:backtrack(state)
-		       return error(res)
-		     end
-		   end
-		   return list
-	         end)
+  return make_rule{ tag = "not", rule = rule }
+end
+
+local function include_rule(tag, rules, rule)
+  if rule.tag == tag then
+    for _, r in ipairs(rule.rules) do
+      table.insert(rules, r)
+    end
+  else
+    table.insert(rules, rule)
+  end
+end
+
+function seq(rule1, rule2)
+  local rules = {}
+  include_rule("seq", rules, rule1)
+  include_rule("seq", rules, rule2)
+  return make_rule{ tag = "seq", rules = rules }
 end
 
 function choice(...)
-  if select("#", ...) < 2 then error("sequence with too few elements") end
+  local rules = {}
   for i = 1, select("#", ...) do
-    if not select(i, ...) then error("nil expression") end
+    include_rule("choice", rules, select(i, ...))
   end
-  local args = {...}
-  return (function (strm)
-		   for i, exp in ipairs(args) do
-		     local state = strm:state()
-		     local ok, res = pcall(exp, strm)
-		     if ok then
-		       return res
-		     end
-		     strm:backtrack(state)
-		   end
-	           return parse_error("no valid alternatives", strm)
-		 end)
+  return make_rule{ tag = "choice", rules = rules }
 end
 
-function concat(exp)
-  if not exp then error("nil expression") end
-  return function (strm)
-	   local res = exp(strm)
-	   return flatten(res)
-	 end
+function star(rule)
+  if rule.tag == "star" then return rule end
+  return make_rule{ tag = "star", rule = rule }
 end
 
-function skip(exp)
-  if not exp then error("nil expression") end
-  return function (strm)
-	   exp(strm)
-	   return {}
-	 end
+function plus(rule)
+  if rule.tag == "plus" then return rule end
+  return make_rule{ tag = "plus", rule = rule }
 end
 
-function bind(exp, func, log_errors)
-  if not exp then error("nil expression") end
-  return function (strm)
-	   local tree = exp(strm)
-	   local ok, res = pcall(func, tree, strm)
-	   if ok then return res end
-	   if log_errors then strm:log_error(res) end
-	   return cheese.parse_error(res, strm)	   
-	 end
+function ref(name)
+  return make_rule{ tag = "ref", name = name }
 end
 
-function handle(exp, func)
-  if not exp then error("nil expression") end
-  func = func or function (strm, err) strm:log_error(err); error(err) end
-  return function (strm)
-	   local ok, res = pcall(exp, strm)
-   	   if ok then return res else return func(strm, res) end
-	 end
+function ext(parser)
+  return make_rule{ tag = "ext", parser = parser }
 end
 
-function compile_dec(env, dec)
+function bind(rule, func)
+  if rule.tag == "bind" then
+    local funcs = {}
+    for _, f in ipairs(rule.funcs) do
+      table.insert(funcs, f)
+    end
+    table.insert(funcs, func)
+    return make_rule{ tag = "bind", rule = rule.rule, funcs = funcs }
+  else
+    return make_rule{ tag = "bind", rule = rule, funcs = { func } }
+  end
 end
 
-function compile(decs)
+function handle(rule, func)
+  return { tag = "handle", rule = rule, func = func }
+end
+
+rule_mt = {
+  __concat = seq,
+  __div = choice,
+  __mod = bind,
+  __exp = handle
+}
+
+any = make_rule{ tag = "any" }
+
+digit = make_rule{ tag = "class", ranges = { { "0", "9" } } }
+
+function compile_rule(rule, rules, parsers)
+  return _M["compile_" .. rule.tag](rule, rules, parsers)
+end
+
+function compile_ref(rule, rules, parsers)
+  return compile_named(rule.name, rules, parsers)
+end
+
+function compile_any()
+  return cheese_parsers.any
+end
+
+function compile_char(rule)
+  return cheese_parsers.char(rule.char)
+end
+
+function compile_class(rule)
+  return cheese_parsers.class(unpack(rule.ranges))
+end
+
+function compile_string(rule)
+  return cheese_parsers.str(rule.str)
+end
+
+function compile_opt(rule, rules, parsers)
+  return cheese_parsers.opt(compile_rule(rule.rule, rules, parsers))
+end
+
+function compile_star(rule, rules, parsers)
+  return cheese_parsers.star(compile_rule(rule.rule, rules, parsers))
+end
+
+function compile_plus(rule, rules, parsers)
+  return cheese_parsers.plus(compile_rule(rule.rule, rules, parsers))
+end
+
+function compile_and(rule, rules, parsers)
+  return cheese_parsers.pand(compile_rule(rule.rule, rules, parsers))
+end
+
+function compile_not(rule, rules, parsers)
+  return cheese_parsers.pnot(compile_rule(rule.rule, rules, parsers))
+end
+
+function compile_seq(rule, rules, parsers)
+  local ps = {}
+  for _, r in ipairs(rule.rules) do
+    table.insert(ps, compile_rule(r, rules, parsers))
+  end
+  return cheese_parsers.seq(unpack(ps))
+end
+
+function compile_choice(rule, rules, parsers)
+  local ps = {}
+  for _, r in ipairs(rule.rules) do
+    table.insert(ps, compile_rule(r, rules, parsers))
+  end
+  return cheese_parsers.choice(unpack(ps))
+end
+
+function compile_ext(rule, rules, parsers)
+  return rule.parser
+end
+
+function compile_bind(rule, rules, parsers)
+  return cheese_parsers.bind(compile_rule(rule.rule, rules, parsers), rule.funcs)
+end
+
+function compile_handle(rule, rules, parsers)
+  return cheese_parsers.handle(compile_rule(rule.rule, rules, parsers), rule.func)
+end
+
+function compile_named(name, rules, parsers)
+  -- Found a recursive definition, returns a thunk
+  if parsers[name] then
+    return cheese_parsers.lazy(function () return parsers[name] end)
+  end
+  -- Marker to avoid infinite recursion
+  parsers[name] = true
+  parsers[name] = compile_rule(rules[name], rules, parsers)
+end
+
+function compile(rules)
   local parsers = {}
-  setmetatable(parsers, { __index = function (tab, name)
-				      return cheese.lazy(function () return tab[name] end)
-				    end })
+  for name, rule in pairs(rules) do
+    compile_named(name, rules, parsers)
+  end
+  return parsers
+end
 
+function open_grammar(grammar_name)
+  local _G = _G
+  local grammar_env = {
+    char = char, class = class, digit = digit, any = any,
+    plus = plus, star = star, opt = opt, pand = pand, pnot = pnot,
+    seq = seq, choice = choice, bind = bind, handle = handle,
+    concat = concat, skip = skip, ext = ext, close = close_grammar,
+    str = str
+  }
+  _G[grammar_name] = {}
+  local mt_grammar = { grammar = _G[grammar_name], old_G = _G }
+  function mt_grammar.__index(t, k)
+    if _G[k] then
+      return _G[k]
+    else
+      return ref(k)
+    end
+  end
+  function mt_grammar.__newindex(t, k, v)
+    mt_grammar.grammar[k] = v
+  end
+  setmetatable(grammar_env, mt_grammar)
+  setfenv(2, grammar_env)
+end
+
+function close_grammar()
+  local grammar_env = getfenv(2)
+  local mt_grammar = getmetatable(grammar_env)
+  setfenv(2, mt_grammar.old_G)
+  return mt_grammar.grammar
 end

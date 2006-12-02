@@ -1,67 +1,12 @@
-require"cheese"
+local cheese = require"cheese"
 
 module("cheese.luap", package.seeall)
 
---
--- Lexical definitions
--- 
+local defs = _M
 
-EOF = cheese.pnot(cheese.any)
-ENDLINE = cheese.choice(cheese.str("\r\n"), cheese.char("\n"), cheese.char("\r"))
-SPACE = cheese.choice(cheese.char(" "), cheese.char("\t"), ENDLINE)
-LONG_COMMENT = cheese.bind(cheese.concat(cheese.seq(cheese.str("--["), cheese.star(cheese.char("=")), cheese.char("["))),
-			  function (bracket, strm)
-			    local level = string.len(bracket) - 4
-			    local close_bracket = cheese.seq(cheese.char("]"), cheese.str(string.rep("=", level)),
-							     cheese.char("]"))
-			    local eat_comment = cheese.skip(cheese.seq(cheese.star(cheese.seq(cheese.pnot(close_bracket),
-							cheese.any)), cheese.opt(close_bracket)))
-			    return eat_comment(strm)
-			  end)
-SHORT_COMMENT = cheese.seq(cheese.str("--"),
-		     cheese.star(cheese.seq(cheese.pnot(ENDLINE), cheese.any)),
-		     cheese.choice(ENDLINE, EOF))
-COMMENT = cheese.choice(LONG_COMMENT, SHORT_COMMENT)
-SPACING = cheese.skip(cheese.star(cheese.choice(SPACE, COMMENT)))
-NAME_CHARS = cheese.class("_", "_", "a", "z", "A", "Z", "0", "9")
-
--- Keywords
-
-function keyword(str)
-  _M[string.upper(str)] = cheese.seq(cheese.str(str), cheese.pnot(NAME_CHARS), SPACING)
-end
-
-keyword_tab = {}
-
-function keywords(...)
-  local args = {...}
-  for i, str in ipairs(args) do
-    keyword_tab[str] = true
-    keyword(str)
-    args[i] = string.upper(args[i])
-  end
-  KEYWORDS = cheese.choice(unpack(args))
-end
-
-keywords("and", "break", "do", "else", "elseif", "end", "false", "for", "function",
+keywords = { "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
 	 "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until",
-	 "while")
-
--- Operations
-
-function op(name, str)
-  if string.len(str) == 1 then
-    _M[string.upper(name)] = cheese.seq(cheese.char(str), SPACING)
-  else
-    _M[string.upper(name)] = cheese.seq(cheese.str(str), SPACING)
-  end
-end
-
-function def_ops(tab)
-  for name, sop in pairs(tab) do
-    op(name, sop)
-  end
-end
+	 "while" }
 
 ops = {
   plus = "+",
@@ -92,228 +37,252 @@ ops = {
   ellipse = "..."
 }
 
-def_ops(ops)
+prec_classes = {
+  { "OR" },
+  { "AND" },
+  { "EQ", "NEQ", "LEQ", "GEQ", "LT", "GT" },
+  { "RANGE", right = true },
+  { "PLUS", "MINUS" },
+  { "STAR", "SLASH", "PERCENT" },
+  { "NOT", "HASH", "MINUS", unary = true },
+  { "HAT" }
+}
+
+
+cheese.open_grammar("lua_grammar")
+
+--
+-- Lexical definitions
+-- 
+
+local EOF = pnot(any)
+local ENDLINE = str("\r\n") / char("\n") / char("\r")
+local SPACE = char(" ") / char("\t") / ENDLINE
+local REST_LONG_COMMENT = ext(function (strm)
+			    local level = strm.bracket_level
+			    local close_bracket = char("]") .. str(string.rep("=", level)) .. char("]")
+			    local eat_comment = (star(pnot(close_bracket) .. any) .. opt(close_bracket)) % skip
+			    return cheese.compile({ comment = eat_comment }).comment(strm)
+			  end)
+local LONG_COMMENT = ((str("--[") .. star(char("=")) .. char("[")) % concat % 
+			  function (bracket)
+			    strm.bracket_level = string.len(bracket) - 4
+			  end) .. REST_LONG_COMMENT
+local SHORT_COMMENT = str("--") .. star(pnot(ENDLINE).. any) .. ENDLINE / EOF
+local SPACING = star(SPACE / COMMENT) % skip
+
+NAME_CHARS = class("_", {"a", "z"}, {"A", "Z"}, {"0", "9"})
+COMMENT = LONG_COMMENT / SHORT_COMMENT
+
+-- Keywords
+
+local function keyword(str)
+  _G[string.upper(str)] = str(str) .. pnot(NAME_CHARS) .. SPACING
+end
+
+local keyword_tab = {}
+
+local function keywords(args)
+  for i, str in ipairs(args) do
+    keyword_tab[str] = true
+    keyword(str)
+    args[i] = string.upper(args[i])
+  end
+end
+
+keywords(defs.keywords)
+
+-- Operators
+
+local function op(name, token)
+  if string.len(str) == 1 then
+    _G[string.upper(name)] = char(token) .. SPACING
+  else
+    _G[string.upper(name)] = str(token) .. SPACING
+  end
+end
+
+local function ops(tab)
+  for name, sop in pairs(tab) do
+    op(name, sop)
+  end
+end
+
+ops(defs.ops)
 
 -- Escape codes
 
-function escape(str, code)
-  return cheese.bind(cheese.str(str), function () return code end)
+local function escape(token, code)
+  return str(token) % function () return code end
 end
 
-escapes = {
-  bell = escape("\\a", "\a"),
-  bspace = escape("\\b", "\b"),
-  ffeed = escape("\\f", "\f"),
-  lfeed = cheese.bind(cheese.choice(cheese.str("\\n"),
-				    cheese.str("\\\n")),
-		      function () return "\n" end),	
-  cr = escape("\\r", "\r"),
-  htab = escape("\\t", "\t"),
-  vtab = escape("\\v", "\v"),
-  bslash = escape("\\\\", "\\"),
-  dquote = escape("\\\"", "\""),
-  squote = escape("\\\'", "\'"),
-  num = cheese.bind(cheese.concat(cheese.seq(cheese.char("\\"), cheese.digit, 
-					     cheese.opt(cheese.digit), cheese.opt(cheese.digit))),
-		    function (esc)
+local escapes = {
+  escape("\\a", "\a"),
+  escape("\\b", "\b"),
+  escape("\\f", "\f"),
+  (str("\\n") / str("\\\n")) % function () return "\n" end,
+  escape("\\r", "\r"),
+  escape("\\t", "\t"),
+  escape("\\v", "\v"),
+  escape("\\\\", "\\"),
+  escape("\\\"", "\""),
+  escape("\\\'", "\'"),
+  (char("\\") .. digit .. opt(digit) opt(digit)) % concat %
+	            function (esc)
 		      return string.char(tonumber(string.sub(esc, 2, -1)))
-		    end)
+		    end
 }
 
-function def_escapes(tab)
+local function def_escapes(tab)
   local escs = {}
   for name, esc in pairs(escapes) do
     table.insert(escs, esc)
   end
-  ESCAPE = cheese.choice(unpack(escs))
+  ESCAPE = choice(unpack(escs))
 end
 
 def_escapes(escapes)
 
 -- Literals and identifiers
 
-INVALID = cheese.choice(cheese.char("\n"), cheese.char("\\"), cheese.char(string.char(0)))
+local INVALID = char("\n") / char("\\") / char(string.char(0))
 
-INVALID_DQUOTE = cheese.choice(INVALID, cheese.char("\""))
+local INVALID_DQUOTE = INVALID / char("\"")
 
-DQUOTE_STRING = cheese.seq(cheese.skip(cheese.char("\"")),
-			   cheese.star(
-				       cheese.choice(ESCAPE,
-						     cheese.seq(
-								cheese.pnot(INVALID_DQUOTE),
-								cheese.any))),
-			   cheese.skip(cheese.char("\"")))
+local DQUOTE_STRING = char("\"") % skip .. star(ESCAPE / (pnot(INVALID_DQUOTE) .. any)) .. char("\"") % skip
 
-INVALID_SQUOTE = cheese.choice(INVALID, cheese.char("\'"))
+local INVALID_SQUOTE = INVALID / char("\'")
 
-SQUOTE_STRING = cheese.seq(cheese.skip(cheese.char("\'")),
-			   cheese.star(
-				       cheese.choice(ESCAPE,
-						     cheese.seq(
-								cheese.pnot(INVALID_SQUOTE),
-								cheese.any))),
-			   cheese.skip(cheese.char("\'")))
+local SQUOTE_STRING = char("\'") % skip .. star(ESCAPE / (pnot(INVALID_SQUOTE) .. any)) .. char("\'") % skip
 
-SHORT_STRING = cheese.bind(cheese.concat(cheese.seq(
-					      cheese.choice(SQUOTE_STRING, DQUOTE_STRING),
-					      SPACING)),
-		     function (str) return { tag = "string", val = str } end)
+local SHORT_STRING = (SQUOTE_STRING / DQUOTE_STRING .. SPACING) % concat %
+		       function (str) return { tag = "string", val = str } end
 
-LONG_STRING = cheese.bind(cheese.concat(cheese.seq(cheese.char("["), cheese.star(cheese.char("=")), cheese.char("["))),
-			  function (bracket, strm)
-			    local level = string.len(bracket) - 2
-			    local close_bracket = cheese.seq(cheese.char("]"), cheese.str(string.rep("=", level)),
-							     cheese.char("]"))
+local REST_LONG_STRING = ext(function (strm)
+			    local level = strm.bracket_level
+			    local bracket = char("]") .. str(string.rep("=", level)) .. char("]")
+			    local not_bracket = pnot(bracket)
+			    local brackets = cheese.compile({ bracket = bracket, not_bracket = not_bracket })
+			    bracket, not_bracket = brackets.bracket, brackets.not_bracket
 			    local ischar
 			    local rest_string = {}
 			    repeat
-			      ischar = pcall(cheese.pnot(close_bracket), strm)
+			      ischar = pcall(not_bracket, strm)
 			      if ischar then table.insert(rest_string, strm:getc()) end
 			    until not ischar
-			    close_bracket(strm)
-			    SPACING(strm)
+			    bracket(strm)
 			    if rest_string[1] == "\n" then rest_string[1] = "" end
-			    return { tag = "string", val = table.concat(rest_string) }
+			    return table.concat(rest_string) 
 			  end)
 
-STRING = cheese.choice(SHORT_STRING, LONG_STRING)
+local LONG_STRING = (((str("[") .. star(char("=")) .. char("[")) % concat % 
+			  function (bracket)
+			    strm.bracket_level = string.len(bracket) - 2
+			  end) .. REST_LONG_STRING .. SPACING) % concat % function (str)
+			    return { tag = "string", val = str } end
 
-DEC_DIGITS = cheese.plus(cheese.digit)
+STRING = SHORT_STRING / LONG_STRING
 
-HEXA_DIGITS = cheese.class("a", "f", "A", "F", "0", "9")
+local DEC_DIGITS = plus(digit)
 
-HEXA_NUMBER = cheese.seq(cheese.str("0x"), cheese.plus(HEXA_DIGITS), SPACING)
+local HEXA_DIGITS = plus(class({"a", "f"}, {"A", "F"}, {"0", "9"}))
 
-SIGN = cheese.opt(cheese.char("-"))
+local HEXA_NUMBER = str("0x") .. HEXA_DIGITS .. SPACING
 
-EXPONENT = cheese.seq(cheese.choice(cheese.char("e"), cheese.char("E")), SIGN, DEC_DIGITS)
+local SIGN = opt(char("-"))
 
-DEC_NUMBER = cheese.seq(DEC_DIGITS,
-			cheese.opt(cheese.seq(cheese.char("."), DEC_DIGITS)),
-			cheese.opt(EXPONENT), SPACING)
+local EXPONENT = class("e", "E") .. SIGN .. DEC_DIGITS
 
-NUMBER = cheese.bind(cheese.concat(cheese.choice(HEXA_NUMBER, DEC_NUMBER)),
-		     function (str) return { tag = "number", val = tonumber(str) } end)
+local DEC_NUMBER = DEC_DIGITS .. opt(char(".") .. DEC_DIGITS) .. opt(EXPONENT) .. SPACING
 
-LITERAL = cheese.choice(NUMBER, STRING)
+NUMBER = (HEXA_NUMBER / DEC_NUMBER) % concat %
+		     function (str) return { tag = "number", val = tonumber(str) } end
 
-NAME = cheese.bind(cheese.concat(cheese.seq(cheese.class("_", "_", "a", "z", "A", "Z"),
-					    cheese.star(NAME_CHARS), SPACING)),
+LITERAL = NUMBER / STRING
+
+NAME = (class("_", {"a", "z"}, {"A", "Z"}) .. star(NAME_CHARS) .. SPACING) % concat %
 		   function (str)
 		     if keyword_tab[str] then
 		       error(str .. " is a reserved word")
 		     else
 		       return { tag = "name", val = str }
 		     end
-		   end) 
+		   end 
 
-FIELDSEP = cheese.choice(COMMA, SEMI)
+FIELDSEP = COMMA / SEMI
 
 --
 -- Hierarchical definitions
 --
 
-PrecClasses = {
-  { OR },
-  { AND },
-  { EQ, NEQ, LEQ, GEQ, LT, GT },
-  { RANGE, right = true },
-  { PLUS, MINUS },
-  { STAR, SLASH, PERCENT },
-  { NOT, HASH, MINUS, unary = true },
-  { HAT }
-}
-
 function gen_expr(prec)
-  if prec > #PrecClasses then
-    _M["Exp_" .. prec] = cheese.lazy(function () return SimpleExp end)
+  if prec > #defs.prec_classes then
+    _G["Exp_" .. prec] = SimpleExp
   else
     gen_expr(prec + 1)
+    local this_class = {}
+    for _, op in ipairs(defs.prec_classes[prec]) do
+      table.insert(this_class, ref(op))
+    end
     local function expr()
-      if PrecClasses[prec].unary then
-	return cheese.bind(cheese.seq(cheese.star(cheese.choice(unpack(PrecClasses[prec]))),
-				      _M["Exp_" .. (prec + 1)]),
+      if defs.prec_classes[prec].unary then
+	return (star(choice(unpack(this_class))) .. _G["Exp_" .. (prec + 1)]) %
 			   function (tree)
 			     if #tree[1] == 0 then return tree[2] end
-			     local node = { tag = "unop", op = cheese.flatten(tree[1][1]) }
+			     local node = { tag = "unop", op = cheese.concat(tree[1][1]) }
 			     local res = node
 			     for i = 2, #tree[1] do
-			       node.operand = { tag = "unop", op = cheese.flatten(tree[1][i]) }
+			       node.operand = { tag = "unop", op = cheese.concat(tree[1][i]) }
 			       node = node.operand
 			     end
 			     node.operand = tree[2]						
 			     return res						   	
-			   end)
+			   end
       else
 	local operator
-	if #PrecClasses[prec] == 1 then
-	  operator = PrecClasses[prec][1]
+	if #this_class == 1 then
+	  operator = this_class[1]
 	else
-	  operator = cheese.choice(unpack(PrecClasses[prec])) 
+	  operator = choice(unpack(this_class)) 
         end
-	return cheese.bind(cheese.seq(_M["Exp_" .. (prec + 1)],
-				      cheese.star(cheese.seq(operator,
-							     _M["Exp_" .. (prec + 1)]))),
+	return (_G["Exp_" .. (prec + 1)] .. star(operator .. _G["Exp_" .. (prec + 1)])) %
 			   function (tree)
 			     if #tree[2] == 0 then return tree[1] end
-			     if PrecClasses[prec].right then
-			       local node = { tag = "binop", op = cheese.flatten(tree[2][1][1]),
+			     if defs.prec_classes[prec].right then
+			       local node = { tag = "binop", op = cheese.concat(tree[2][1][1]),
 				 left = tree[1] }
 			       local res = node
 			       for i = 1, #tree[2]-1 do
-				 node.right = { tag = "binop", op = cheese.flatten(tree[2][i][1]),
+				 node.right = { tag = "binop", op = cheese.concat(tree[2][i][1]),
 				   left = tree[2][i][2] }
 				 node = node.right
 			       end
 			       node.right = tree[2][#tree[2]][2]	     
 			       return res
 			     else
-			       local node = { tag = "binop", op = cheese.flatten(tree[2][#tree[2]][1]),
+			       local node = { tag = "binop", op = cheese.concat(tree[2][#tree[2]][1]),
 				 right = tree[2][#tree[2]][2] }
 			       local res = node
 			       for i = #tree[2]-1, 1, -1 do
-				 node.left = { tag = "binop", op = cheese.flatten(tree[2][i][1]),
+				 node.left = { tag = "binop", op = cheese.concat(tree[2][i][1]),
 				   right = tree[2][i][2] }
 				 node = node.left
 			       end
 			       node.left = tree[1]
 			       return res
 			     end
-			   end)
+			   end
       end
     end
-    _M["Exp_" .. prec] = expr()
+    _G["Exp_" .. prec] = expr()
   end
 end
 
 gen_expr(1)
 
-Exp = Exp_1
+local Exp = Exp_1
 
---Precedence = {
---  [HAT] = {10, 9},
---  [RANGE] = {5, 4},
---  [EQ] = {3, 3},
---  [NEQ] = {3, 3},
---  [LEQ] = {3, 3},
---  [GEQ] = {3, 3},
---  [LT] = {3, 3},
---  [GT] = {3, 3},
---  [AND] = {2, 2},
---  [OR] = {1, 1},
---  [PLUS] = {6, 6},
---  [MINUS] = {6, 6},
---  [SLASH] = {7, 7},
---  [MOD] = {7, 7},
---  [STAR] = {7, 7}
---}
-
---UnaryPrec = 8
-
---UNOP = cheese.choice(MINUS, NOT, HASH)
-
-FuncName = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(DOT, NAME)),
-				  cheese.opt(cheese.seq(COLON, NAME))),
+FuncName = (NAME .. star(DOT .. NAME) .. opt(COLON .. NAME)) %
 		       function (tree)
 			 local funcname_node = { tag = "funcname", var = tree[1], indexes = {} }
 			 for _, v in ipairs(tree[2]) do
@@ -321,7 +290,7 @@ FuncName = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(DOT, NAME)),
 			 end
 		       	 if #tree[3]>0 then funcname_node.self = tree[3][1][2].val end
 			 return funcname_node
-		       end)
+		       end
 
 NameField = cheese.bind(cheese.seq(NAME, ASSIGN, Exp),
 			function (tree)

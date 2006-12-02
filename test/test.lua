@@ -1,18 +1,23 @@
 local parse = require"cheese"
 local stream = require"stream.string"
 
-local aei = parse.bind(parse.seq(parse.plus(parse.class("a","a","e","e","i","i")),
-				                   parse.pnot(parse.str("ou"))),
+parse.open_grammar"rules"
+
+aei = (plus(class("a","e","i")) .. pnot(str("ou"))) %
       	  function (res)
 	    return table.concat(res[1])
-	  end)
+	    	  end
 
-local foobar = parse.str("foobar")
+foobar = str("foobar")
 
-local parser = parse.choice(aei, foobar)
+join = aei / foobar
 
-local ok, res = pcall(parser, stream.new("aei"))
+close()
+
+local parsers = parse.compile(rules)
+
+local ok, res = pcall(parsers.join, stream.new("aei"))
 print(res)
 
-local res = parser(stream.new("foobar"))
+local res = parsers.join(stream.new("foobar"))
 print(res)
