@@ -1,4 +1,4 @@
--- Cheese: a PEG parser generator for Lua, in Lua
+-- Parser generator
 
 local cheese_parsers = require"cheese.parsers"
 
@@ -68,10 +68,11 @@ local function include_rule(tag, rules, rule)
   end
 end
 
-function seq(rule1, rule2)
+function seq(...)
   local rules = {}
-  include_rule("seq", rules, rule1)
-  include_rule("seq", rules, rule2)
+  for i = 1, select("#", ...) do
+    include_rule("seq", rules, select(i, ...))
+  end
   return make_rule{ tag = "seq", rules = rules }
 end
 
@@ -101,16 +102,18 @@ function ext(parser)
   return make_rule{ tag = "ext", parser = parser }
 end
 
-function bind(rule, func)
+function bind(rule, ...)
   if rule.tag == "bind" then
     local funcs = {}
     for _, f in ipairs(rule.funcs) do
       table.insert(funcs, f)
     end
-    table.insert(funcs, func)
+    for i = 1, select("#", ...) do
+      table.insert(funcs, select(i, ...))
+    end
     return make_rule{ tag = "bind", rule = rule.rule, funcs = funcs }
   else
-    return make_rule{ tag = "bind", rule = rule, funcs = { func } }
+    return make_rule{ tag = "bind", rule = rule, funcs = {...} }
   end
 end
 
@@ -214,11 +217,15 @@ function compile_named(name, rules, parsers)
 end
 
 function compile(rules)
-  local parsers = {}
-  for name, rule in pairs(rules) do
-    compile_named(name, rules, parsers)
+  if getmetatable(rules) == rule_mt then
+    return compile_rule(rules, {}, {})
+  else
+    local parsers = {}
+    for name, rule in pairs(rules) do
+      compile_named(name, rules, parsers)
+    end
+    return parsers
   end
-  return parsers
 end
 
 function open_grammar(grammar_table)

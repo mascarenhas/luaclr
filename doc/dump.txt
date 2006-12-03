@@ -1,0 +1,3 @@
+See test/parse.lua for an example of how to use the Lua AST dumper. The
+AST dumper source code is in src/luap/dump.lua. It also serves as a good
+guide to the structure of the AST.

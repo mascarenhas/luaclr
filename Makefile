@@ -19,6 +19,7 @@ uninstall:
 	rm -rf $(LUA_MODULE_DIR)/cheese
 	rm -rf $(LUA_MODULE_DIR)/stream
 
-test: install
-	cd test && cat test-files | xargs lua51 parse.lua && cd ..
+.PHONY: test
 
+test:
+	cd test && cat test-files | xargs lua51 parse.lua && cd ..

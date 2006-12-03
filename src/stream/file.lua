@@ -11,7 +11,8 @@ end
 
 function new(file)
 	 return { file = file, line = 1, getc = getc, backtrack = backtrack,
-	   gets = gets, state = state, log_error = log_error, errors = {} }
+	   gets = gets, state = state, log_error = log_error, errors = {},
+	   close = close }
 end
 
 function log_error(strm, err)
@@ -51,3 +52,6 @@ function backtrack(strm, st)
 	 strm.line = st[2]
 end
 
+function close(strm)
+  strm.file:close()
+end

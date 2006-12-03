@@ -1,0 +1,61 @@
+README for Cheese 0.1 Alpha
+
+1. What is Cheese
+
+Cheese is a parser generator for Lua that uses Parsing Expression Grammars
+(PEGs) [1] as its description formalism and Lua itself as a description language
+for the parsers. It also includes a grammar for a parser that understands
+the complete syntax of Lua 5.1 and generates ASTs. It also includes a dumper
+that generates Lua code from these ASTs.
+
+The current version is a prototype that generates parsers written in Lua, so
+the generated parsers are very slow. The parser has been tested on several
+Lua source files, but there may be hidden bugs.
+
+The purpose of Cheese is  to investigate a more powerful and expressive
+alternative to Lua patterns, without sacrificing readability and to provide
+a dynamically extensible parser to the Lua language.
+
+Plans for Cheese include a much faster implementation of the parsers,
+a back-end for generating Lua opcodes from the ASTs, and a better
+interface for extending the parser (currently it can only be extended by
+direct manipulation of the grammar).
+
+Cheese is free software. The contents of this distribution are Copyright
+2006 Fabio Mascarenhas, and released through the MIT license.
+
+2. Installation
+
+In Unix systems, just type "make install" as root. If your Lua libraries are
+not located in /usr/local/share/lua/5.1, please edit the provided Makefile
+first.
+
+Windows users should copy the files by hand. See the Makefile for where it
+file should go.
+
+3. Testing
+
+To run a minimal test suite for the Lua parser (it stresses all the Cheese rules,
+and the two implementations of strems provided) just type "make test".
+
+4. Removal
+
+In Unix systems, just type "make uninstall" as root. Windows users should
+delete the files by hand.
+
+5. Documentation
+
+Please check the doc directory for extra documentation.
+
+6. Changelog
+
+This is the first public release.
+
+7. Credits
+
+Cheese is designed by Fabio Mascarenhas. You can contact the author
+at mascarenhas@acm.org.
+
+8. References
+
+[1] http://pdos.csail.mit.edu/~baford/packrat/

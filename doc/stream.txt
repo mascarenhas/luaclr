@@ -1,0 +1,28 @@
+Cheese works with stream objects. A stream object is any object that
+correctly implements getc, gets, state, backtrack, and log_error methods, and
+provide the errors field.
+
+The Cheese distribution provides two examples, stream.string and stream.file,
+that take streams and files (Lua IO objects), respectively.
+
+1. Stream Methods
+
+strm:getc() - returns a single character, or raises an error if at the end of the stream
+strm:gets(len) - returns len characters, or raises an error if the end of the
+	       stream is reached.
+strm:state() - returns the current state of the stream. The state should have
+	     enough information to later restore the stream to it. 
+strm:backtrack(st) - makes the stream go back to the provided state. The method
+		   is only guaranteed to work if the state has been previously reached.
+strm:log_error(err) - logs an error, putting it in the end of the errors list. 
+		    The error is a record with the error message (msg), position and line
+		    where the error ocurred. If err is a table, assume it contains a message
+		    in the msg field, and the state where it ocurred in the state field. If
+		    not, construct an error with err as the message and the current
+		    position and line.
+
+2. Using the provided streams
+
+Both stream.string and stream.file have a new function that takes a string
+or a file, respectively, and returns a stream for it. The stream returned by
+stream.file, has an additional method, strm:close(), that closes the file.

@@ -1,0 +1,3 @@
+See test/parse.lua for an example of how to use the Lua parser. The
+complete parser description is in src/luap/luap.lua.
+

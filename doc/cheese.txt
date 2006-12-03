@@ -1,0 +1,121 @@
+This text describes how to use Cheese to describe grammars and build
+parsers. See luap.txt for information on how to use the included Lua parser,
+dump.txt on how to use the AST dumper, and stream.txt for a reference
+of the stream library.
+
+Cheese is packaged as a Lua module, so use require("cheese") to load it
+into your application. The rest of this text assumes you did that.
+
+You use Cheese combinators to build a parser description, or grammar,
+and then "compile" this description to a parser (or usually a collection of
+parsers). Cheese has seven "unit" combinators that describe basic
+parsers, and eight "bind" combinators that combine parser descriptions
+into larger ones.
+
+"Unit" combinators:
+
+cheese.any - matches any character, except the end of the stream
+cheese.digit - matches a decimal digit (0 to 9)
+cheese.char(c) - matches a single character, c
+cheese.str(s) - matches the string s
+cheese.class(range, [...]) - matches a single character in the
+		    specified ranges. Each range may be a character, or a
+		    pair { start, end } that matches a character between start
+		    and end.
+cheese.ref(name) - references another rule in a grammar description
+cheese.ext(func) - uses func as an external parser. func is a function that
+		 takes a stream as an argument and either returns the parsed
+		 value (maybe consumig part of the stream) or raising an error
+		 in case there is not a match.
+
+"Bind" combinators:
+
+cheese.seq(rule, rule, [...]) - describes a parser that tries to match each
+		 rule in sequence, failing if any of them fails. The result
+		 is a list containing the result of each rule.
+cheese.choice(rule, rule, [...]) - describes a parser that tries to match
+		    each rule, backtracking in case of failure, and returning the
+		    result of the first match.
+cheese.plus(rule) - describes a parser that tries to match as many
+		  ocurrences of rule as possible, but fails if it can't match
+		  at least one of them.
+cheese.star(rule) - describes a parser that tries to match as many
+		  ocurrences of rule as possible, but never fails.
+cheese.pnot(rule) - describes a parser that inconditionally backtracks
+		  after trying to match rule, then fails if rule succeeds and
+		  succeeds if rule fails. In case of success it returns an
+		  empty table.
+cheese.pand(rule) - describes a parser that inconditionally backtracks
+		  after trying to match rule, failing if rule fails and returning
+		  rule's result if it succeeds.
+cheese.bind(rule, func, [...]) - describes a parser that takes the result
+		  of applying rule and then passes it to each func in sequence,
+		  returning the final result.
+cheese.handle(rule, func) - describes a parser that calls func in case
+		    rule fails, passing the failure object (a table containing the
+		    failure message and the state of the stream when it ocurred).
+		    If func is nil a default handler is used that just logs the
+		    failure.
+
+The cheese.seq, cheese.choice, cheese.bind and cheese.handle combinators
+have special syntactic sugar. If rule1 and rule2 are parser descriptions then
+(rule1 .. rule2) is cheese.seq(rule1, rule2), (rule1 / rule2) is cheese.choice(rule1,
+rule2), (rule1 % func) is cheese.bind(rule1, func), and (rule1 ^ func) is
+cheese.handle(rule1, func). Be careful with operator precedences
+(.. < / = % < ^), and parenthesize where appropriate. Don't worry about
+the efficiency of constructions such as (rule1 .. rule2 .. rule3 .. rule4), as
+Cheese automatically combines those in the equivalent of
+cheese.seq(rule1, rule2, rule3, rule4).
+
+Cheese offers two convenience functions that you can use with cheese.bind,
+concat and skip. The function cheese.concat recursively flattens a list of lists
+into a string, while skip ignores the input and returns an empty list.
+
+To compile a parser description call cheese.compile. It will return a parser
+function that you can apply to a stream to get the parsing result. The function
+raises an error in case of failure to parse.
+
+A single rule is seldom enough to describe a complex grammar, so cheese
+offers a facility for describing full grammars. The function cheese.open_grammar
+begins a grammar description, and takes a table that will receive the grammar rules,
+or a string, in which case Cheese looks up the table in the current environment
+(or creates a fresh one if it doesn't exist). Cheese modifies the current environment
+so you can:
+
+1. Use the combinators, plus concat and skip, can be used without prefixing them
+with "cheese.;
+
+2. Reference other grammar rules directly, and Cheese will automatically insert
+use the ref combinator for you (as long as the rule name does not conflict with
+an existing global);
+
+3. Define new grammar rules as globals. Cheese will put them in the grammar
+rules table instead of in your environment.
+
+You continue to have access to your global variables, and can normally define
+new ones, as long as they are not parser descriptions. Call close() to retore your
+environment to its previous behavior. Call cheese.compile on the rules table
+to get a table with a parser for each rule. Recursive definitions are handled
+automatically. For example, the following code defines and uses a very
+simple grammar:
+
+require"cheese"
+require"stream.string"
+
+cheese.open_grammar"rules"
+
+aei = (plus(class("a","e","i")) .. pnot(str"ou")) %
+      	  function (res)
+	     return table.concat(res[1])
+	  end
+
+foobar = str("foobar")
+
+join = aei / foobar
+
+close()
+
+local parsers = cheese.compile(rules)
+
+print(pcall(parsers.join, stream.string.new("aei")))
+print(pcall(parsers.join, stream.string.new("foobar")))

@@ -1,3 +1,5 @@
+-- Parser combinators
+
 module("cheese.parsers", package.seeall)
 
 function parse_error(message, strm)
