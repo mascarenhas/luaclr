@@ -204,15 +204,13 @@ end
 function compile_named(name, rules, parsers)
   -- Found a recursive definition, returns a thunk
   if parsers[name] == true then
-    return cheese_parsers.lazy(function () return parsers[name] end)
-  elseif parsers[name] then
-    return parsers[name]
-  else
+    parsers[name] = cheese_parsers.lazy(function () return parsers[name] end)
+  elseif not parsers[name] then
     -- Marker to avoid infinite recursion
     parsers[name] = true
     parsers[name] = compile_rule(rules[name], rules, parsers)
-    return parsers[name]
   end
+    return parsers[name]
 end
 
 function compile(rules)

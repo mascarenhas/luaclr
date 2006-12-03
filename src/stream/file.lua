@@ -1,5 +1,3 @@
-require"struct"
-
 module("stream.file", package.seeall)
 
 local function count(str, char)
@@ -13,13 +11,13 @@ end
 
 function new(file)
 	 return { file = file, line = 1, getc = getc, backtrack = backtrack,
-	   gets = get, state = state, errors = {} }
+	   gets = gets, state = state, log_error = log_error, errors = {} }
 end
 
 function log_error(strm, err)
   local err_data
   if type(err) == "table" then
-    local position, line = struct.unpack("ii", err.state)
+    local position, line = err.state[1], err.state[2]
     err_data = { msg = err.msg, position = position, line = line }
   else
     err_data = { msg = err, position = strm.file:seek(), line = strm.line }
@@ -45,12 +43,11 @@ function gets(strm, l)
 end
 
 function state(strm)
-	 return struct.pack("ii", strm.file:seek(), strm.line)
+	 return { strm.file:seek(), strm.line }
 end
 
 function backtrack(strm, st)
-	 local position, line = struct.unpack("ii", st)
-	 strm.file:seek("set", position)
-	 strm.line = line
+	 strm.file:seek("set", st[1])
+	 strm.line = st[2]
 end
 
