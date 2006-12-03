@@ -17,7 +17,7 @@ function concat (tab)
   if type(tab) == "table" then
     local res = {}
     for i, l in ipairs(tab) do
-      res[i] = flatten(l)
+      res[i] = concat(l)
     end
     return table.concat(res)
   else
@@ -203,12 +203,16 @@ end
 
 function compile_named(name, rules, parsers)
   -- Found a recursive definition, returns a thunk
-  if parsers[name] then
+  if parsers[name] == true then
     return cheese_parsers.lazy(function () return parsers[name] end)
+  elseif parsers[name] then
+    return parsers[name]
+  else
+    -- Marker to avoid infinite recursion
+    parsers[name] = true
+    parsers[name] = compile_rule(rules[name], rules, parsers)
+    return parsers[name]
   end
-  -- Marker to avoid infinite recursion
-  parsers[name] = true
-  parsers[name] = compile_rule(rules[name], rules, parsers)
 end
 
 function compile(rules)
@@ -219,34 +223,50 @@ function compile(rules)
   return parsers
 end
 
-function open_grammar(grammar_name)
-  local _G = _G
+function open_grammar(grammar_table)
+  local env = getfenv(2)
+  local old_mt = getmetatable(env)
+  if type(grammar_table) == "string" then
+    env[grammar_table] = env[grammar_table] or {}
+    grammar_table = env[grammar_table]
+  end
   local grammar_env = {
     char = char, class = class, digit = digit, any = any,
     plus = plus, star = star, opt = opt, pand = pand, pnot = pnot,
     seq = seq, choice = choice, bind = bind, handle = handle,
     concat = concat, skip = skip, ext = ext, close = close_grammar,
-    str = str
+    str = str, ref = ref
   }
-  _G[grammar_name] = {}
-  local mt_grammar = { grammar = _G[grammar_name], old_G = _G }
+  local mt_grammar = { grammar = grammar_table, old_mt = old_mt }
   function mt_grammar.__index(t, k)
-    if _G[k] then
-      return _G[k]
-    else
+    if grammar_env[k] then
+      return grammar_env[k]
+    elseif old_mt and type(old_mt.__index) == "table" and old_mt.__index[k] then
+      return old_mt.__index[k]
+    elseif old_mt and type(old_mt.__index) == "function" and old_mt.__index(t, k) then
+      return old_mt.__index(t, k)
+    elseif type(k) == "string" then
       return ref(k)
+    else
+      return nil
     end
   end
   function mt_grammar.__newindex(t, k, v)
-    mt_grammar.grammar[k] = v
+    if getmetatable(v) == rule_mt then
+      mt_grammar.grammar[k] = v
+    elseif old_mt and type(old_mt.__newindex) == "table" then
+      old_mt.__newindex[k] = v
+    elseif old_mt and type(old_mt.__newindex) == "function" then
+      old_mt.__newindex(t, k, v)
+    else
+      rawset(t, k, v)
+    end
   end
-  setmetatable(grammar_env, mt_grammar)
-  setfenv(2, grammar_env)
+  setmetatable(env, mt_grammar)
 end
 
 function close_grammar()
-  local grammar_env = getfenv(2)
-  local mt_grammar = getmetatable(grammar_env)
-  setfenv(2, mt_grammar.old_G)
-  return mt_grammar.grammar
+  local env = getfenv(2)
+  local mt_grammar = getmetatable(env)
+  setmetatable(env, mt_grammar.old_mt)
 end

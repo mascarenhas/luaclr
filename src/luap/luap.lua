@@ -2,11 +2,64 @@ local cheese = require"cheese"
 
 module("cheese.luap", package.seeall)
 
-local defs = _M
+prec_classes = {
+  { "OR" },
+  { "AND" },
+  { "EQ", "NEQ", "LEQ", "GEQ", "LT", "GT" },
+  { "RANGE", right = true },
+  { "PLUS", "MINUS" },
+  { "STAR", "SLASH", "PERCENT" },
+  { "NOT", "HASH", "MINUS", unary = true },
+  { "HAT" }
+}
+
+cheese.open_grammar("grammar")
+
+--
+-- Lexical definitions
+-- 
+
+local EOF = pnot(any)
+local ENDLINE = str("\r\n") / char("\n") / char("\r")
+local SPACE = char(" ") / char("\t") / ENDLINE
+local REST_LONG_COMMENT = ext(function (strm)
+			    local level = strm.bracket_level
+			    local close_bracket = char("]") .. str(string.rep("=", level)) .. char("]")
+			    local eat_comment = (star(pnot(close_bracket) .. any) .. opt(close_bracket)) % skip
+			    return cheese.compile({ comment = eat_comment }).comment(strm)
+			  end)
+local LONG_COMMENT = ((str("--[") .. star(char("=")) .. char("[")) % concat % 
+			  function (bracket)
+			    strm.bracket_level = string.len(bracket) - 4
+			  end) .. REST_LONG_COMMENT
+local SHORT_COMMENT = str("--") .. star(pnot(ENDLINE) .. any) .. ENDLINE / EOF
+
+SPACING = star(SPACE / COMMENT) % skip
+NAME_CHARS = class("_", {"a", "z"}, {"A", "Z"}, {"0", "9"})
+COMMENT = LONG_COMMENT / SHORT_COMMENT
+
+-- Keywords
 
 keywords = { "and", "break", "do", "else", "elseif", "end", "false", "for", "function",
 	 "if", "in", "local", "nil", "not", "or", "repeat", "return", "then", "true", "until",
 	 "while" }
+
+local function keyword(token)
+  _M[string.upper(token)] = str(token) .. pnot(NAME_CHARS) .. SPACING
+end
+
+local keyword_tab = {}
+
+function define_keywords()
+  for i, token in ipairs(keywords) do
+    keyword_tab[token] = true
+    keyword(token)
+  end
+end
+
+define_keywords()
+
+-- Operators
 
 ops = {
   plus = "+",
@@ -37,86 +90,29 @@ ops = {
   ellipse = "..."
 }
 
-prec_classes = {
-  { "OR" },
-  { "AND" },
-  { "EQ", "NEQ", "LEQ", "GEQ", "LT", "GT" },
-  { "RANGE", right = true },
-  { "PLUS", "MINUS" },
-  { "STAR", "SLASH", "PERCENT" },
-  { "NOT", "HASH", "MINUS", unary = true },
-  { "HAT" }
-}
-
-
-cheese.open_grammar("lua_grammar")
-
---
--- Lexical definitions
--- 
-
-local EOF = pnot(any)
-local ENDLINE = str("\r\n") / char("\n") / char("\r")
-local SPACE = char(" ") / char("\t") / ENDLINE
-local REST_LONG_COMMENT = ext(function (strm)
-			    local level = strm.bracket_level
-			    local close_bracket = char("]") .. str(string.rep("=", level)) .. char("]")
-			    local eat_comment = (star(pnot(close_bracket) .. any) .. opt(close_bracket)) % skip
-			    return cheese.compile({ comment = eat_comment }).comment(strm)
-			  end)
-local LONG_COMMENT = ((str("--[") .. star(char("=")) .. char("[")) % concat % 
-			  function (bracket)
-			    strm.bracket_level = string.len(bracket) - 4
-			  end) .. REST_LONG_COMMENT
-local SHORT_COMMENT = str("--") .. star(pnot(ENDLINE).. any) .. ENDLINE / EOF
-local SPACING = star(SPACE / COMMENT) % skip
-
-NAME_CHARS = class("_", {"a", "z"}, {"A", "Z"}, {"0", "9"})
-COMMENT = LONG_COMMENT / SHORT_COMMENT
-
--- Keywords
-
-local function keyword(str)
-  _G[string.upper(str)] = str(str) .. pnot(NAME_CHARS) .. SPACING
-end
-
-local keyword_tab = {}
-
-local function keywords(args)
-  for i, str in ipairs(args) do
-    keyword_tab[str] = true
-    keyword(str)
-    args[i] = string.upper(args[i])
-  end
-end
-
-keywords(defs.keywords)
-
--- Operators
-
 local function op(name, token)
-  if string.len(str) == 1 then
-    _G[string.upper(name)] = char(token) .. SPACING
+  if string.len(token) == 1 then
+    _M[string.upper(name)] = char(token) .. SPACING
   else
-    _G[string.upper(name)] = str(token) .. SPACING
+    _M[string.upper(name)] = str(token) .. SPACING
   end
 end
 
-local function ops(tab)
-  for name, sop in pairs(tab) do
+local function define_ops()
+  for name, sop in pairs(ops) do
     op(name, sop)
   end
 end
 
-ops(defs.ops)
+define_ops(ops)
 
 -- Escape codes
 
-local function escape(token, code)
+function escape(token, code)
   return str(token) % function () return code end
 end
 
-local escapes = {
+escapes = {
   escape("\\a", "\a"),
   escape("\\b", "\b"),
   escape("\\f", "\f"),
@@ -127,13 +123,13 @@ local escapes = {
   escape("\\\\", "\\"),
   escape("\\\"", "\""),
   escape("\\\'", "\'"),
-  (char("\\") .. digit .. opt(digit) opt(digit)) % concat %
+  (char("\\") .. digit .. opt(digit) .. opt(digit)) % concat %
 	            function (esc)
 		      return string.char(tonumber(string.sub(esc, 2, -1)))
 		    end
 }
 
-local function def_escapes(tab)
+local function define_escapes()
   local escs = {}
   for name, esc in pairs(escapes) do
     table.insert(escs, esc)
@@ -141,7 +137,7 @@ local function def_escapes(tab)
   ESCAPE = choice(unpack(escs))
 end
 
-def_escapes(escapes)
+define_escapes()
 
 -- Literals and identifiers
 
@@ -215,18 +211,29 @@ FIELDSEP = COMMA / SEMI
 -- Hierarchical definitions
 --
 
+prec_classes = {
+  { "OR" },
+  { "AND" },
+  { "EQ", "NEQ", "LEQ", "GEQ", "LT", "GT" },
+  { "RANGE", right = true },
+  { "PLUS", "MINUS" },
+  { "STAR", "SLASH", "PERCENT" },
+  { "NOT", "HASH", "MINUS", unary = true },
+  { "HAT" }
+}
+
 function gen_expr(prec)
-  if prec > #defs.prec_classes then
-    _G["Exp_" .. prec] = SimpleExp
+  if prec > #prec_classes then
+    _M["Exp_" .. prec] = SimpleExp
   else
     gen_expr(prec + 1)
     local this_class = {}
-    for _, op in ipairs(defs.prec_classes[prec]) do
+    for _, op in ipairs(prec_classes[prec]) do
       table.insert(this_class, ref(op))
     end
     local function expr()
-      if defs.prec_classes[prec].unary then
-	return (star(choice(unpack(this_class))) .. _G["Exp_" .. (prec + 1)]) %
+      if prec_classes[prec].unary then
+	return (star(choice(unpack(this_class))) .. _M["Exp_" .. (prec + 1)]) %
 			   function (tree)
 			     if #tree[1] == 0 then return tree[2] end
 			     local node = { tag = "unop", op = cheese.concat(tree[1][1]) }
@@ -245,10 +252,10 @@ function gen_expr(prec)
 	else
 	  operator = choice(unpack(this_class)) 
         end
-	return (_G["Exp_" .. (prec + 1)] .. star(operator .. _G["Exp_" .. (prec + 1)])) %
+	return (_M["Exp_" .. (prec + 1)] .. star(operator .. _M["Exp_" .. (prec + 1)])) %
 			   function (tree)
 			     if #tree[2] == 0 then return tree[1] end
-			     if defs.prec_classes[prec].right then
+			     if prec_classes[prec].right then
 			       local node = { tag = "binop", op = cheese.concat(tree[2][1][1]),
 				 left = tree[1] }
 			       local res = node
@@ -274,7 +281,7 @@ function gen_expr(prec)
 			   end
       end
     end
-    _G["Exp_" .. prec] = expr()
+    _M["Exp_" .. prec] = expr()
   end
 end
 
@@ -292,37 +299,35 @@ FuncName = (NAME .. star(DOT .. NAME) .. opt(COLON .. NAME)) %
 			 return funcname_node
 		       end
 
-NameField = cheese.bind(cheese.seq(NAME, ASSIGN, Exp),
+NameField = (NAME .. ASSIGN .. Exp) %
 			function (tree)
 			  return { tag = "namefield", name = tree[1].val, exp = tree[3] }
-			end)
+			end
 
-IndexField = cheese.bind(cheese.seq(LBRA, Exp, RBRA, ASSIGN, Exp),
+IndexField = (LBRA .. Exp .. RBRA .. ASSIGN .. Exp) %
 			 function (tree)
 			   return { tag = "indexfield", name = tree[2], exp = tree[5] }
-			 end)
+			 end
 
-Field = cheese.choice(NameField, IndexField, Exp)
+Field = NameField / IndexField / Exp
 
-FieldList = cheese.bind(cheese.seq(Field, cheese.star(cheese.seq(FIELDSEP, Field)),
-				   cheese.opt(FIELDSEP)),
+FieldList = (Field .. star(FIELDSEP .. Field) .. opt(FIELDSEP)) %
 			function (tree)
 			  local fieldlist_node = { tree[1] }
 			  for _, v in ipairs(tree[2]) do table.insert(fieldlist_node, v[2]) end
 			  return fieldlist_node
-			end)
+			end
 
-Constructor = cheese.bind(cheese.seq(LCURLY, cheese.opt(FieldList), RCURLY),
+Constructor = (LCURLY .. opt(FieldList) .. RCURLY) %
 			  function (tree)
 			    return { tag = "constructor", fields = tree[2] }    
-			  end)
+			  end
 
-NameIndex = cheese.bind(cheese.seq(DOT, NAME), function (tree) return { tag = "nameindex", name = tree[2].val } end)
+NameIndex = (DOT .. NAME) % function (tree) return { tag = "nameindex", name = tree[2].val } end
 
-ExpIndex = cheese.bind(cheese.seq(LBRA, Exp, RBRA), function (tree) return { tag = "expindex", exp = tree[2] } end)
+ExpIndex = (LBRA .. Exp .. RBRA) % function (tree) return { tag = "expindex", exp = tree[2] } end
 
-ExpList1 = cheese.bind(cheese.seq(Exp, cheese.star(cheese.seq(COMMA, Exp)),
-				  cheese.opt(COMMA)),
+ExpList1 = (Exp .. star(COMMA .. Exp) .. opt(COMMA)) %
 		       function (tree)
 			 --if #tree[2] == 0 then return tree[1] end
 			 local explist_node = { tree[1] }
@@ -330,28 +335,26 @@ ExpList1 = cheese.bind(cheese.seq(Exp, cheese.star(cheese.seq(COMMA, Exp)),
 			   table.insert(explist_node, v[2])
 			 end
 		         return explist_node
-		       end)
+		       end
 
-FuncArgs = cheese.bind(cheese.choice(Constructor, STRING, cheese.seq(LPAR, cheese.opt(ExpList1), RPAR)),
+FuncArgs = (Constructor / STRING / (LPAR .. opt(ExpList1) .. RPAR)) %
 		       function (tree)
 			 if tree.tag then
 			   return { tree }
 			 else
 			   return tree[2]
 			 end
-		       end)
+		       end
 
-MethodCall = cheese.bind(cheese.seq(COLON, NAME, FuncArgs), function (tree) return { tag = "method",
-								name = tree[2].val, args = tree[3] } end)
+MethodCall = (COLON .. NAME .. FuncArgs) % function (tree) return { tag = "method",
+								name = tree[2].val, args = tree[3] } end
 
-PrefixExp = cheese.bind(cheese.choice(NAME, cheese.seq(LPAR, Exp, RPAR)),
+PrefixExp = (NAME / (LPAR .. Exp .. RPAR)) %
 			function (tree)
 			  if tree.tag == "name" then return tree else return tree[2] end
-			end)
+			end
 
-PrimaryExp = cheese.bind(cheese.seq(PrefixExp,
-				    cheese.star(cheese.choice(NameIndex, ExpIndex,
-							      MethodCall, FuncArgs))),
+PrimaryExp = (PrefixExp .. star(NameIndex / ExpIndex / MethodCall / FuncArgs)) %
 			 function (tree)
 			   if #tree[2] == 0 then return tree[1] end
 			   local pexp_node = { tag = "primaryexp", prefix = tree[1], indexes = {} }
@@ -359,9 +362,9 @@ PrimaryExp = cheese.bind(cheese.seq(PrefixExp,
 			     table.insert(pexp_node.indexes, v)
 			   end
 			   return pexp_node
-		         end)
+		         end
 
-FunctionCall = cheese.bind(PrimaryExp,
+FunctionCall = PrimaryExp %
 			   function (pexp)
 			     local indexes = pexp.indexes
 			     if (not indexes) or (indexes[#indexes].tag and 
@@ -376,26 +379,23 @@ FunctionCall = cheese.bind(PrimaryExp,
 			       table.remove(indexes, #indexes)
 			       return pexp
 			     end
-			   end)
+			   end
 
-FuncBody = cheese.lazy(function ()
-			 return cheese.bind(cheese.seq(LPAR, cheese.opt(ParList1), RPAR, Block, END),
+FuncBody = (LPAR .. opt(ParList1) .. RPAR .. Block .. END) %
 					    function (tree)
 					      return { tag = "body", parlist = tree[2],
 						block = tree[4] }
-					    end)
-		       end)
+					    end
 
-AnonFunction = cheese.bind(cheese.seq(FUNCTION, FuncBody),
+AnonFunction = (FUNCTION .. FuncBody) %
 			   function (tree)
 			     return { tag = "function", parlist = tree[2].parlist, block = tree[2].block }
-			   end)
+			   end
 
-SimpleExp = cheese.choice(NUMBER, STRING, cheese.concat(NIL), cheese.concat(TRUE),
-			  cheese.concat(FALSE), cheese.concat(ELLIPSE),
-			  Constructor, AnonFunction, FunctionCall, PrimaryExp)
+SimpleExp = NUMBER / STRING / (NIL % concat) / (TRUE % concat) / (FALSE % concat) / (ELLIPSE % concat) /
+			  Constructor / AnonFunction / FunctionCall / PrimaryExp
 
-NameList = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(COMMA, NAME))),
+NameList = (NAME .. star(COMMA .. NAME)) %
 		       function (tree)
 			 --if #tree[2] == 0 then return tree[1] end
 			 local namelist_node = { tree[1] }
@@ -403,20 +403,18 @@ NameList = cheese.bind(cheese.seq(NAME, cheese.star(cheese.seq(COMMA, NAME))),
 			   table.insert(namelist_node, v[2])
 			 end
 		         return namelist_node
-		       end, true)
+		       end
 
-ParList1 = cheese.bind(cheese.choice(cheese.seq(NameList,
-						cheese.opt(cheese.seq(COMMA, ELLIPSE))),
-				     cheese.concat(ELLIPSE)),
+ParList1 = ((NameList .. opt(COMMA .. ELLIPSE)) / (ELLIPSE % concat)) %
 		       function (tree)
 			 if tree == "..." then return { varargs = true } end
 			 if #tree[2] > 0 then
 			   tree[1].varargs = true
 			 end
 			 return tree[1]
-		       end, true)
+		       end
 
-Var = cheese.bind(PrimaryExp,
+Var = PrimaryExp %
 		  function (pexp)
 		    if (not pexp.indexes and pexp.tag == "name") then
 		      return { tag = "var", prefix = pexp, indexes = {} }
@@ -426,34 +424,30 @@ Var = cheese.bind(PrimaryExp,
       		    else
 		      return error("invalid lvalue")
 		    end
-		  end, true)
+		  end
 
-VarList1 = cheese.bind(cheese.seq(Var, cheese.star(cheese.seq(COMMA, Var))),
+VarList1 = (Var .. star(COMMA .. Var)) %
 		       function (tree)
 			 local varlist_node = { tree[1] }
 			 for _, v in ipairs(tree[2]) do
 			   table.insert(varlist_node, v[2])
 			 end
 		         return varlist_node
-		     end, true)
+		     end
 
-Stat = cheese.lazy(function ()
-		     return cheese.choice(FunctionCall, Assignment, DoBlock, While,
-					  Repeat, If, NumFor, GenFor, FuncDef,
-					  LocalFuncDef, LocalDef)
-		   end)
+Stat = (FunctionCall / Assignment / DoBlock / While / Repeat / If / NumFor / GenFor /
+	FuncDef / LocalFuncDef / LocalDef) .. opt(SEMI)
 
-LastStat = cheese.bind(cheese.choice(cheese.seq(RETURN, cheese.opt(ExpList1)), cheese.concat(BREAK)),
+LastStat = ((RETURN .. opt(ExpList1)) / (BREAK % concat)) %
 		       function (tree)
 			 if tree == "break" then
 			   return { tag = "break" }
 			 else
 			   return { tag = "return", exps = tree[2] }
 			 end
-		       end, true)
+		       end
 
-Block = cheese.bind(cheese.seq(cheese.star(cheese.seq(Stat, cheese.opt(SEMI))),
-			       cheese.opt(cheese.seq(LastStat, cheese.opt(SEMI)))),
+Block = (star(Stat) .. opt(LastStat)) %
 		    function (tree)
 		      local chunk_node = {}
 		      for _, v in ipairs(tree[1]) do
@@ -463,25 +457,23 @@ Block = cheese.bind(cheese.seq(cheese.star(cheese.seq(Stat, cheese.opt(SEMI))),
 			table.insert(chunk_node, tree[2][1])
 		      end
 		      return chunk_node
-		    end)
+		    end
 
-Chunk = cheese.bind(cheese.seq(SPACING, Block, EOF), function (tree) return { tag = "chunk", block = tree[2] } end)
+Chunk = (SPACING .. Block .. EOF) % function (tree) return { tag = "chunk", block = tree[2] } end
 
-DoBlock = cheese.bind(cheese.seq(DO, Block, END), function (tree) return { tag = "do", block = tree[2] } end)
+DoBlock = (DO .. Block .. END) % function (tree) return { tag = "do", block = tree[2] } end
 
-While = cheese.bind(cheese.seq(WHILE, Exp, DO, Block, END),
+While = (WHILE .. Exp .. DO .. Block .. END) %
 		    function (tree)
 		      return { tag = "while", exp = tree[2], block = tree[4] }
-		    end)
+		    end
 
-Repeat = cheese.bind(cheese.seq(REPEAT, Block, UNTIL, Exp),
+Repeat = (REPEAT .. Block .. UNTIL .. Exp) %
 		     function (tree)
 		       return { tag = "repeat", exp = tree[4], block = tree[2] }
-		     end)
+		     end
 
-If = cheese.bind(cheese.seq(IF, Exp, THEN, Block,
-			    cheese.star(cheese.seq(ELSEIF, Exp, THEN, Block)),
-			    cheese.opt(cheese.seq(ELSE, Block)), END),
+If = (IF .. Exp .. THEN .. Block .. star(ELSEIF .. Exp .. THEN .. Block) .. opt(ELSE .. Block) .. END) %
 		 function (tree)
 		   local if_node = { tag = "if", clauses = {}}
 		   table.insert(if_node.clauses, { cond = tree[2], block = tree[4] })
@@ -492,43 +484,44 @@ If = cheese.bind(cheese.seq(IF, Exp, THEN, Block,
 		     if_node.block_else = tree[6][2]
 		   end
 		   return if_node
-	         end)
+	         end
 
-NumFor = cheese.bind(cheese.seq(FOR, NAME, ASSIGN, Exp, COMMA, Exp, 
-				cheese.opt(cheese.seq(COMMA, Exp)), DO, Block, END),
+NumFor = (FOR .. NAME .. ASSIGN .. Exp .. COMMA .. Exp .. opt(COMMA .. Exp) .. DO .. Block .. END) %
 		     function (tree)
 		       local for_node = { tag = "nfor", var = tree[2].val, start = tree[4],
 			 finish = tree[6], block = tree[9] }
 		       if #tree[7] > 0 then for_node.step = tree[7][2] end
 		       return for_node
-		     end)
+		     end
 
-GenFor = cheese.bind(cheese.seq(FOR, NameList, IN, ExpList1, DO, Block, END),
+GenFor = (FOR .. NameList .. IN .. ExpList1 .. DO .. Block .. END) %
 		     function (tree)
 		       return { tag = "gfor", vars = tree[2], exps = tree[4], block = tree[6] }
-		     end)
+		     end
 
-FuncDef = cheese.bind(cheese.seq(FUNCTION, FuncName, FuncBody),
+FuncDef = (FUNCTION .. FuncName .. FuncBody) %
 		      function (tree)
 			return { tag = "function", name = tree[2], parlist = tree[3].parlist, block = tree[3].block }
-		      end)
+		      end
 
-LocalFuncDef = cheese.bind(cheese.seq(LOCAL, FUNCTION, NAME, FuncBody),
+LocalFuncDef = (LOCAL .. FUNCTION .. NAME .. FuncBody) %
 			   function (tree)
 			     return { tag = "function", islocal = true, 
 			       name = tree[3], parlist = tree[4].parlist, block = tree[4].block }
-			   end)
+			   end
 
-LocalDef = cheese.bind(cheese.seq(LOCAL, NameList, cheese.opt(cheese.seq(ASSIGN, ExpList1))),
+LocalDef = (LOCAL .. NameList .. opt(ASSIGN .. ExpList1)) %
 		       function (tree)
 			 local locdef_node = { tag = "local", names = tree[2] }
 			 if #tree[3] > 0 then locdef_node.exps = tree[3][2] end
 			 return locdef_node
-		       end)
+		       end
 
-Assignment = cheese.bind(cheese.seq(VarList1, ASSIGN, ExpList1),
+Assignment = (VarList1 .. ASSIGN .. ExpList1) %
 			 function (tree)
 			   return { tag = "assign", vars = tree[1], exps = tree[3] }
-			 end)
+			 end
 
+close()
 
+parser = cheese.compile(grammar)
