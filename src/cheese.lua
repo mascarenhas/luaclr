@@ -58,6 +58,14 @@ function pnot(rule)
   return make_rule{ tag = "not", rule = rule }
 end
 
+function minus(rule1, rule2)
+  return seq(pnot(rule2), rule2)
+end
+
+function times(rule1, rule2)
+  return seq(pand(rule1), rule2)
+end
+
 local function include_rule(tag, rules, rule)
   if rule.tag == tag then
     for _, r in ipairs(rule.rules) do
@@ -125,7 +133,9 @@ rule_mt = {
   __concat = seq,
   __div = choice,
   __mod = bind,
-  __exp = handle
+  __exp = handle,
+  __sub = minus,
+  __mul = times
 }
 
 any = make_rule{ tag = "any" }

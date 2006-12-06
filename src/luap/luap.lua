@@ -25,14 +25,14 @@ local SPACE = char(" ") / char("\t") / ENDLINE
 local REST_LONG_COMMENT = ext(function (strm)
 			    local level = strm.bracket_level
 			    local close_bracket = char("]") .. str(string.rep("=", level)) .. char("]")
-			    local eat_comment = (star(pnot(close_bracket) .. any) .. opt(close_bracket)) % skip
+			    local eat_comment = (star(any - close_bracket) .. opt(close_bracket)) % skip
 			    return cheese.compile({ comment = eat_comment }).comment(strm)
 			  end)
 local LONG_COMMENT = ((str("--[") .. star(char("=")) .. char("[")) % concat % 
 			  function (bracket)
 			    strm.bracket_level = string.len(bracket) - 4
 			  end) .. REST_LONG_COMMENT
-local SHORT_COMMENT = str("--") .. star(pnot(ENDLINE) .. any) .. ENDLINE / EOF
+local SHORT_COMMENT = str("--") .. star(any - ENDLINE) .. ENDLINE / EOF
 
 SPACING = star(SPACE / COMMENT) % skip
 NAME_CHARS = class("_", {"a", "z"}, {"A", "Z"}, {"0", "9"})
@@ -45,7 +45,7 @@ keywords = { "and", "break", "do", "else", "elseif", "end", "false", "for", "fun
 	 "while" }
 
 local function keyword(token)
-  _M[string.upper(token)] = str(token) .. pnot(NAME_CHARS) .. SPACING
+  _M[string.upper(token)] = str(token) .. SPACING - NAME_CHARS
 end
 
 local keyword_tab = {}
@@ -145,11 +145,11 @@ local INVALID = char("\n") / char("\\") / char(string.char(0))
 
 local INVALID_DQUOTE = INVALID / char("\"")
 
-local DQUOTE_STRING = char("\"") % skip .. star(ESCAPE / (pnot(INVALID_DQUOTE) .. any)) .. char("\"") % skip
+local DQUOTE_STRING = char("\"") % skip .. star(ESCAPE / (any - INVALID_DQUOTE)) .. char("\"") % skip
 
 local INVALID_SQUOTE = INVALID / char("\'")
 
-local SQUOTE_STRING = char("\'") % skip .. star(ESCAPE / (pnot(INVALID_SQUOTE) .. any)) .. char("\'") % skip
+local SQUOTE_STRING = char("\'") % skip .. star(ESCAPE / (any - INVALID_SQUOTE)) .. char("\'") % skip
 
 local SHORT_STRING = (SQUOTE_STRING / DQUOTE_STRING .. SPACING) % concat %
 		       function (str) return { tag = "string", val = str } end
