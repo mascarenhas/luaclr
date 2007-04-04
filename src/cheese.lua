@@ -59,7 +59,7 @@ function pnot(rule)
 end
 
 function minus(rule1, rule2)
-  return seq(pnot(rule2), rule2)
+  return seq(pnot(rule2), rule1)
 end
 
 function times(rule1, rule2)

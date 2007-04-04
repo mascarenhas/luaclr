@@ -45,7 +45,7 @@ keywords = { "and", "break", "do", "else", "elseif", "end", "false", "for", "fun
          "while" }
 
 local function keyword(token)
-  _M[string.upper(token)] = str(token) .. SPACING - NAME_CHARS
+  _M[string.upper(token)] = str(token) .. (SPACING - NAME_CHARS)
 end
 
 local keyword_tab = {}
