@@ -449,13 +449,14 @@ LastStat = ((RETURN .. opt(ExpList1)) / (BREAK % concat)) %
 
 Block = (star(Stat) .. opt(LastStat)) %
                     function (tree)
-                      local chunk_node = {}
+                      local chunk_node = { }
                       for _, v in ipairs(tree[1]) do
                         table.insert(chunk_node, v[1])
                       end
-                      if #tree[2] > 0 then
-                        table.insert(chunk_node, tree[2][1])
+                      if tree[2] and tree[2].tag then
+                        table.insert(chunk_node, tree[2])
                       end
+		      chunk_node.tag = "block"
                       return chunk_node
                     end
 
@@ -488,7 +489,7 @@ If = (IF .. Exp .. THEN .. Block .. star(ELSEIF .. Exp .. THEN .. Block) .. opt(
 
 NumFor = (FOR .. NAME .. ASSIGN .. Exp .. COMMA .. Exp .. opt(COMMA .. Exp) .. DO .. Block .. END) %
                      function (tree)
-                       local for_node = { tag = "nfor", var = tree[2].val, start = tree[4],
+                       local for_node = { tag = "nfor", var = tree[2], start = tree[4],
                          finish = tree[6], block = tree[9] }
                        if #tree[7] > 0 then for_node.step = tree[7][2] end
                        return for_node

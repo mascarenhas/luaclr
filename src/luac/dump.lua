@@ -1,17 +1,11 @@
 -- AST dumper
 
-module("cheese.luap.dump", package.seeall)
+module(..., package.seeall)
 
 function dump(tree, level)
   level = level or 0
   if type(tree) == "table" and tree.tag then
     return _M["dump_" .. tree.tag](tree, level)
-  elseif type(tree) == "table"  then
-    local out = {}
-    for k, v in pairs(tree) do
-      table.insert(out, tostring(k) .. "=" .. tostring(v))
-    end
-    return string.rep(" ", level) .. "{ " .. table.concat(out, ", ") .. " }"
   else
     return string.rep(" ", level) .. tostring(tree)
   end
@@ -27,7 +21,15 @@ function dump_block(block, level)
 end
 
 function dump_chunk(chunk)
-  return dump_block(chunk.block)
+  local out = {}
+  table.insert(out, "-- Locals: ")
+  for _, localv in ipairs(chunk.locals or {}) do
+    local name = localv.name
+    if localv.isupval then name = "%"  .. name end
+    table.insert(out, "-- " .. name .. ": " .. tostring(localv))
+  end
+  table.insert(out, dump_block(chunk.block))
+  return table.concat(out, "\n")
 end
 
 function dump_while(swhile, level)
@@ -112,6 +114,12 @@ function dump_function(sfunction, level)
   if sfunction.name then name = dump(sfunction.name) end
   table.insert(out, string.rep(" ", level) .. islocal .. "function " ..
 	       name .. " (" .. dump_list(sfunction.parlist) .. ")")
+  table.insert(out, string.rep(" ", level+2) .. "-- Locals: ")
+  for _, localv in ipairs(sfunction.locals or {}) do
+    local name = localv.name
+    if localv.isupval then name = "%"  .. name end
+    table.insert(out, string.rep(" ", level+2) .. "-- " .. name .. ": " .. tostring(localv))
+  end
   table.insert(out, dump_block(sfunction.block, level + 2))
   table.insert(out, string.rep(" ", level) .. "end")
   return table.concat(out, "\n")
@@ -188,7 +196,9 @@ function dump_method(mcall, level)
 end
 
 function dump_name(name, level)
-  return name.val
+  local val = name.val
+  if name.ref then val = val .. ":" .. tostring(name.ref) end
+  return val
 end
 
 function dump_string(s, level)
