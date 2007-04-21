@@ -502,6 +502,11 @@ GenFor = (FOR .. NameList .. IN .. ExpList1 .. DO .. Block .. END) %
 
 FuncDef = (FUNCTION .. FuncName .. FuncBody) %
                       function (tree)
+			if tree[2].self then
+			  table.insert(tree[2].indexes, tree[2].self)
+			  table.insert(tree[3].parlist, 1, { tag = "name", val = "self" })
+			  tree[2].self = nil
+			end
                         return { tag = "function", name = tree[2], parlist = tree[3].parlist, block = tree[3].block }
                       end
 

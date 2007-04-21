@@ -1,4 +1,4 @@
-require"cheese.luac.st"
+require"cheese.luanetc.st"
 
 module(..., package.seeall)
 
@@ -78,7 +78,7 @@ visitor["function"] = function (st, nfunction)
   end
   st:enter(nfunction)
   for _, par in ipairs(nfunction.parlist) do
-    par.ref = st:add(par.val)
+    par.ref = st:add(par.val, true)
   end
   tie_refs(st, nfunction.block)
   st:leave()

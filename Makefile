@@ -13,8 +13,8 @@ install:
 	cp src/luap/luap.lua $(LUA_MODULE_DIR)/cheese
 	mkdir -p $(LUA_MODULE_DIR)/cheese/luap
 	cp src/luap/dump.lua $(LUA_MODULE_DIR)/cheese/luap
-	mkdir -p $(LUA_MODULE_DIR)/cheese/luac
-	cp src/luac/*.lua $(LUA_MODULE_DIR)/cheese/luac
+	mkdir -p $(LUA_MODULE_DIR)/cheese/luanetc
+	cp src/luanetc/*.lua $(LUA_MODULE_DIR)/cheese/luanetc
 
 uninstall:
 	rm -f $(LUA_MODULE_DIR)/cheese.lua
