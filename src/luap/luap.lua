@@ -87,7 +87,7 @@ ops = {
   comma = ",",
   dot = ".",
   range = "..",
-  ellipse = "..."
+  ellipsis = "..."
 }
 
 local function op(name, token)
@@ -291,10 +291,10 @@ local Exp = Exp_1
 
 FuncName = (NAME .. star(DOT .. NAME) .. opt(COLON .. NAME)) %
                        function (tree)
-                         local funcname_node = { tag = "funcname", var = tree[1], indexes = {} }
-                         for _, v in ipairs(tree[2]) do
-                           table.insert(funcname_node.indexes, v[2].val)
-                         end
+			 local funcname_node = tree[1]
+			 for _, v in ipairs(tree[2]) do
+			   funcname_node = { tag = "index", table = funcname_node, index = { tag = "string", val = v[2].val } }
+			 end
                          if #tree[3]>0 then funcname_node.self = tree[3][1][2].val end
                          return funcname_node
                        end
@@ -357,27 +357,27 @@ PrefixExp = (NAME / (LPAR .. Exp .. RPAR)) %
 PrimaryExp = (PrefixExp .. star(NameIndex / ExpIndex / MethodCall / FuncArgs)) %
                          function (tree)
                            if #tree[2] == 0 then return tree[1] end
-                           local pexp_node = { tag = "primaryexp", prefix = tree[1], indexes = {} }
-                           for _, v in ipairs(tree[2]) do
-                             table.insert(pexp_node.indexes, v)
-                           end
-                           return pexp_node
+			   local exp_node = tree[1]
+			   for _, v in ipairs(tree[2]) do
+			     if v.tag == "nameindex" then
+			       exp_node = { tag = "index", table = exp_node, index = { tag = "string", val = v.name } }
+			     elseif v.tag == "expindex" then
+			       exp_node = { tag = "index", table = exp_node, index = v.exp }
+			     elseif v.tag == "method" then
+			       exp_node = { tag = "call", func = exp_node, method = v.name, args = v.args }
+			     else
+			       exp_node = { tag = "call", func = exp_node, args = v }			     
+			     end
+			   end
+			   return exp_node			 
                          end
 
 FunctionCall = PrimaryExp %
                            function (pexp)
-                             local indexes = pexp.indexes
-                             if (not indexes) or (indexes[#indexes].tag and 
-                                indexes[#indexes].tag ~= "method") then
-                               return error("not a function call")
-                             else
-                               pexp.tag = "call"
-                               if indexes[#indexes].tag then
-                                 pexp.method = indexes[#indexes].name
-                                 pexp.args = indexes[#indexes].args
-                               else pexp.args = indexes[#indexes] end
-                               table.remove(indexes, #indexes)
-                               return pexp
+			     if pexp.tag ~= "call" then
+			       return error("not a function call")
+			     else
+			       return pexp
                              end
                            end
 
@@ -392,12 +392,12 @@ AnonFunction = (FUNCTION .. FuncBody) %
                              return { tag = "function", parlist = tree[2].parlist, block = tree[2].block }
                            end
 
-SimpleExp = NUMBER / STRING / (NIL % concat) / (TRUE % concat) / (FALSE % concat) / (ELLIPSE % concat) /
-                          Constructor / AnonFunction / FunctionCall / PrimaryExp
+SimpleExp = NUMBER / STRING / (NIL % function () return { tag = "nil" } end) / (TRUE % function () return { tag = "true" } end) /
+  (FALSE % function () return { tag = "false" } end) / (ELLIPSIS % function () return { tag = "ellipsis" } end) / Constructor /
+  AnonFunction / FunctionCall / PrimaryExp
 
 NameList = (NAME .. star(COMMA .. NAME)) %
                        function (tree)
-                         --if #tree[2] == 0 then return tree[1] end
                          local namelist_node = { tree[1] }
                          for _, v in ipairs(tree[2]) do
                            table.insert(namelist_node, v[2])
@@ -405,7 +405,7 @@ NameList = (NAME .. star(COMMA .. NAME)) %
                          return namelist_node
                        end
 
-ParList1 = ((NameList .. opt(COMMA .. ELLIPSE)) / (ELLIPSE % concat)) %
+ParList1 = ((NameList .. opt(COMMA .. ELLIPSIS)) / (ELLIPSIS % concat)) %
                        function (tree)
                          if tree == "..." then return { varargs = true } end
                          if #tree[2] > 0 then
@@ -416,12 +416,9 @@ ParList1 = ((NameList .. opt(COMMA .. ELLIPSE)) / (ELLIPSE % concat)) %
 
 Var = PrimaryExp %
                   function (pexp)
-                    if (not pexp.indexes and pexp.tag == "name") then
-                      return { tag = "var", prefix = pexp, indexes = {} }
-                    elseif (pexp.indexes and pexp.indexes[#pexp.indexes].tag ~= "method") then
-                      pexp.tag = "var"            
-                      return pexp 
-                    else
+		    if pexp.tag == "name" or pexp.tag == "index" then
+		      return { tag = "var", ref = pexp }
+		    else
                       return error("invalid lvalue")
                     end
                   end
@@ -476,15 +473,16 @@ Repeat = (REPEAT .. Block .. UNTIL .. Exp) %
 
 If = (IF .. Exp .. THEN .. Block .. star(ELSEIF .. Exp .. THEN .. Block) .. opt(ELSE .. Block) .. END) %
                  function (tree)
-                   local if_node = { tag = "if", clauses = {}}
-                   table.insert(if_node.clauses, { cond = tree[2], block = tree[4] })
-                   for _, v in ipairs(tree[5]) do
-                     table.insert(if_node.clauses, { cond = v[2], block = v[4] })
+                   local if_node = { tag = "if", cond = tree[2], block =  tree[4] }
+		   local last_if = if_node
+		   for _, v in ipairs(tree[5]) do
+		     last_if.block_else = { tag = "block", { tag = "if", cond = v[2], block = v[4] } }
+		     last_if = last_if.block_else[1]
                    end
-                   if #tree[6] > 0 then
-                     if_node.block_else = tree[6][2]
+		   if #tree[6] > 0 then
+		     last_if.block_else = tree[6][2]
                    end
-                   return if_node
+		   return if_node
                  end
 
 NumFor = (FOR .. NAME .. ASSIGN .. Exp .. COMMA .. Exp .. opt(COMMA .. Exp) .. DO .. Block .. END) %
@@ -502,18 +500,23 @@ GenFor = (FOR .. NameList .. IN .. ExpList1 .. DO .. Block .. END) %
 
 FuncDef = (FUNCTION .. FuncName .. FuncBody) %
                       function (tree)
+			local name = tree[2]
 			if tree[2].self then
-			  table.insert(tree[2].indexes, tree[2].self)
+			  name = { tag = "index", table = tree[2], index = { tag = "string", val = tree[2].self } }
 			  table.insert(tree[3].parlist, 1, { tag = "name", val = "self" })
 			  tree[2].self = nil
 			end
-                        return { tag = "function", name = tree[2], parlist = tree[3].parlist, block = tree[3].block }
+			return { tag = "assign", vars = { { tag = "var", ref = name } },
+			  exps = { { tag = "function",
+			      parlist = tree[3].parlist,
+			      block = tree[3].block } } }
                       end
 
 LocalFuncDef = (LOCAL .. FUNCTION .. NAME .. FuncBody) %
                            function (tree)
-                             return { tag = "function", islocal = true, 
-                               name = tree[3], parlist = tree[4].parlist, block = tree[4].block }
+			     return { tag = "local", names = { tree[3] },
+			       exps = { { tag = "function", parlist =
+				   tree[4].parlist, block = tree[4].block } } }
                            end
 
 LocalDef = (LOCAL .. NameList .. opt(ASSIGN .. ExpList1)) %

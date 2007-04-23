@@ -22,7 +22,7 @@ function char(c)
 		   if cc == c then
 		     return cc
 		   else
-		     return parse_error("character match", strm)
+		     return parse_error("character match with " .. c, strm)
 		   end
 		 end
 end
@@ -31,7 +31,7 @@ function str(s)
   return function (strm)
 		   local ss = strm:gets(string.len(s))
 		   if (not ss) or (s ~= ss) then
-		     return parse_error("string match", strm)
+		     return parse_error("string match (expected: " .. s .. ", read: " .. tostring(ss) .. ")", strm)
 		   end
 		   return ss
 		 	         end

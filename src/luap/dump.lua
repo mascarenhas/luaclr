@@ -13,8 +13,24 @@ function dump(tree, level)
     end
     return string.rep(" ", level) .. "{ " .. table.concat(out, ", ") .. " }"
   else
-    return string.rep(" ", level) .. tostring(tree)
+    error({ "invalid ast node " .. tostring(tree) })
   end
+end
+
+function dump_true()
+  return "true"
+end
+
+function dump_false()
+  return "false"
+end
+
+function dump_ellipsis()
+  return "..."
+end
+
+function dump_nil()
+  return "nil"
 end
 
 function dump_block(block, level)
@@ -54,16 +70,19 @@ end
 function dump_if(sif, level)
   local out = {}
   level = level or 0
-  for i, clause in ipairs(sif.clauses) do
-    local name
-    if i == 1 then name = "if " else name = "elseif " end
+  table.insert(out, string.rep(" ", level) ..
+	       "if " .. dump(sif.cond) .. " then ")
+  table.insert(out, dump_block(sif.block, level + 2))
+  while sif.block_else and #sif.block_else == 1 and
+        sif.block_else[1].tag == "if" do
+    sif = sif.block_else[1]
     table.insert(out, string.rep(" ", level) ..
-		 	       name .. dump(clause.cond) .. " then ")
-    table.insert(out, dump_block(clause.block, level + 2))
+	       "elseif " .. dump(sif.cond) .. " then ")
+    table.insert(out, dump_block(sif.block, level + 2))
   end
   if sif.block_else then
-    table.insert(out, string.rep(" ", level) .. "else")
-    table.insert(out, dump_block(sif.block_else, level + 2))
+      table.insert(out, string.rep(" ", level) .. "else")
+      table.insert(out, dump_block(sif.block_else, level + 2))
   end
   table.insert(out, string.rep(" ", level) .. "end")
   return table.concat(out, "\n")
@@ -107,11 +126,8 @@ end
 function dump_function(sfunction, level)
   local out = {}
   level = level or 0
-  local islocal, name = "", ""
-  if sfunction.islocal then islocal = "local " end
-  if sfunction.name then name = dump(sfunction.name) end
-  table.insert(out, string.rep(" ", level) .. islocal .. "function " ..
-	       name .. " (" .. dump_list(sfunction.parlist) .. ")")
+  table.insert(out, string.rep(" ", level) .. "function " ..
+	       " (" .. dump_list(sfunction.parlist) .. ")")
   table.insert(out, dump_block(sfunction.block, level + 2))
   table.insert(out, string.rep(" ", level) .. "end")
   return table.concat(out, "\n")
@@ -156,15 +172,7 @@ end
 function dump_var(svar, level)
   local out = {}
   level = level or 0
-  table.insert(out, dump(svar.prefix, level))
-  for _, item in ipairs(svar.indexes) do
-    if item.tag then
-      table.insert(out, dump(item, level))
-    else
-      table.insert(out,"(" .. dump_list(item, level) .. ")") 
-    end
-  end
-  return table.concat(out)
+  return dump(svar.ref, level)
 end
 
 function dump_call(scall, level)
@@ -172,19 +180,13 @@ function dump_call(scall, level)
   level = level or 0
   local method = ""
   if scall.method then method = ":" .. scall.method end
-  return string.rep(" ", level) .. dump_var(scall, level) ..
+  return string.rep(" ", level) .. dump(scall.func, level) ..
     method .. "(" .. dump_list(scall.args, level) .. ")"
 end
 
-function dump_primaryexp(pexp, level)
+function dump_index(pexp, level)
   level = level or 0
-  return dump_var(pexp, level)
-end
-
-function dump_method(mcall, level)
-  level = level or 0
-  return string.rep(" ", level) .. ":" .. mcall.method .. "(" ..
-    dump_list(mcall.args, level) .. ")"
+  return dump(pexp.table, level) .. "[" .. dump(pexp.index, level) .. "]"
 end
 
 function dump_name(name, level)
@@ -197,15 +199,6 @@ end
 
 function dump_number(n, level)
   return tostring(n.val)
-end
-
-function dump_expindex(expindex, level)
-  level = level or 0
-  return "[" .. dump(expindex.exp, level) .. "]"
-end
-
-function dump_nameindex(nameindex, level)
-  return "." .. nameindex.name
 end
 
 function dump_constructor(cons, level)
@@ -222,15 +215,6 @@ function dump_indexfield(indexfield, level)
   level = level or 0
   return "[" .. dump(indexfield.name, level) .. "]=" .. 
     dump(indexfield.exp, level)
-end
-
-function dump_funcname(funcname, level)
-  level = level or 0
-  local indexes = table.concat(funcname.indexes, ".")
-  if #funcname.indexes>0 then indexes = "." .. indexes end
-  local self = ""
-  if funcname.self then self = ":" .. funcname.self end
-  return funcname.var.val .. indexes .. self
 end
 
 function dump_binop(binop, level)

@@ -126,7 +126,7 @@ function bind(rule, ...)
 end
 
 function handle(rule, func)
-  return { tag = "handle", rule = rule, func = func }
+  return make_rule{ tag = "handle", rule = rule, func = func }
 end
 
 rule_mt = {
