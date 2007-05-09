@@ -1,4 +1,3 @@
-local Compiler = require "cheese.luanetc.compiler"
 local OpCodes = require "cheese.luanetc.opcodes"
 
 module(..., package.seeall)
@@ -7,7 +6,7 @@ visitor = {}
 
 function visitor.block(compiler, block)
   for _, stat in ipairs(block) do
-    compiler:compile(stat)
+    compiler:compile(stat, 0)
   end
 end
 
@@ -42,21 +41,19 @@ end
 
 visitor["if"] = function (compiler, nif)
   local out = compiler.ilgen:define_label()
-  for _, clause in ipairs(nif.clauses) do
-    local next = compiler.ilgen:define_label()
-    compiler:compile(clause.cond)
-    compiler.ilgen:jump_if_false(next)
-    compiler:compile(clause.block)
-    compiler:ilgen:emit(OpCodes.br, out)
-    compiler.ilgen:mark_label(next)
-  end
+  local lelse = compiler.ilgen:define_label()
+  compiler:compile(nif.cond)
+  compiler.ilgen:jump_if_false(lelse)
+  compiler:compile(nif.block)
+  compiler.ilgen:emit(OpCodes.br, out)
+  compiler.ilgen:mark_label(lelse)
   if nif.block_else then
     compiler:compile(nif.block_else)
   end
   compiler.ilgen:mark_label(out)
 end
 
-visitor["do"] = function (st, ndo)
+visitor["do"] = function (compiler, ndo)
   compiler:compile(ndo.block)
 end
 
@@ -75,24 +72,15 @@ function visitor.nfor(compiler, nfor)
   end
   compiler.ilgen:start_loop()
   compiler.ilgen:mark_label(test)
-  compiler.ilgen:jump_if_not_equal(function () 
-  				     compiler.ilgen:load_local(nfor.var.ref)
-			           end,
-			           function ()
-				     compiler.ilgen:load_local(temp_finish)
-			           end, out)
+  compiler.ilgen:jump_if_not_equal(nfor.var,
+			           { tag = "name", ref = temp_finish })
   compiler:compile(nfor.block)
   if temp_step then
-    compiler.ilgen:add(function ()
-			 compiler.ilgen:load_local(nfor.var.ref)
-		       end,
-		       function ()
-			 compiler.ilgen:load_local(temp_step)
-		       end)
+    compiler.ilgen:add(nfor.var, { tag = "name", ref = temp_step })
+    compiler.ilgen:store_local(nfor.var.ref)
   else
-    compiler.ilgen:add_number(function ()
-			        compiler.ilgen:load_local(nfor.var.ref)
-		              end, 1)
+    compiler.ilgen:add(nfor.var, 1)
+    compiler.ilgen:store_local(nfor.var.ref)
   end
   compiler.ilgen:emit(OpCodes.br, test)
   compiler.ilgen:mark_label(out)
@@ -114,7 +102,7 @@ function visitor.gfor(compiler, gfor)
   compiler.ilgen:load_local(temp_iter)
   compiler.ilgen:load_local(temp_state)
   compiler.ilgen:load_local(temp_control)
-  compiler.ilgen:call(#gfor.vars, 3)
+  compiler.ilgen:call(2, #gfor.vars)
   for i = #gfor.vars, 1, -1 do
     compiler.ilgen:store_local(gfor.vars[i].ref)
   end
@@ -133,11 +121,6 @@ visitor["function"] = function (compiler, nfunction)
   compiler:compile(nfunction.block)
   local func = compiler:end_function()
   compiler.ilgen:new_func(func)
-  if nfunction.islocal then
-    compiler.ilgen:store_local(nfunction.name.ref)
-  elseif nfunction.name then
-    compiler:compile(nfunction.name)
-  end
 end
 
 visitor["local"] = function (compiler, nlocal)
@@ -147,7 +130,7 @@ visitor["local"] = function (compiler, nlocal)
   end
 end
 
-function visitor.assign(st, assign)
+function visitor.assign(compiler, assign)
   compiler.ilgen:explist(assign.exps, #assign.vars)
   for i = #assign.vars, 1, -1 do
     compiler:compile(assign.vars[i])
@@ -159,135 +142,57 @@ visitor["break"] = function (compiler, nbreak)
 end
 
 visitor["return"] = function (compiler, nreturn)
-  self.ilgen:argslist(nreturn.exps, true)
+  compiler.ilgen:argslist(nreturn.exps, true)
   compiler.ilgen:emit(OpCodes.ret)
 end
 
-function visitor.var(var)
-  if #var.indexes == 0 and var.prefix.ref then
-    compiler.ilgen:store_local(var.prefix.ref)
-  elseif #var.indexes == 0 then
-    compiler.ilgen:store_global(var.prefix.val)
-  else
-    if var.prefix.ref then
-      compiler.ilgen:load_local(var.prefix.ref)
+function visitor.var(compiler, var)
+  if var.ref.tag == "name" then
+    if var.ref.ref then
+      compiler.ilgen:store_local(var.ref.ref)
     else
-      compiler.ilgen:load_global(var.prefix.val)
+      compiler.ilgen:store_global(var.ref.val)
     end
-    for i = 1, (#var.indexes - 1) do
-      if not var.indexes[i].tag then
-	local nargs = compiler.ilgen:argslist(var.indexes[i])
-      	compiler.ilgen:call(1, nargs)
-      elseif var.indexes[i].tag == "method" then
-	local self_arg = compiler.ilgen:get_temp()
-	compiler.ilgen:emit(OpCodes.dup)
-	compiler.ilgen:store_local(self_arg)
-	compiler.ilgen:load_string(var.indexes[i].name)
-	compiler.ilgen:gettable()
-	table.insert(var.indexes[i].args, 1, { tag = "name", ref = self_arg })
-	local nargs = compiler.ilgen:argslist(var.indexes[i].args)
-	compiler.ilgen:call(1, nargs)
-	table.remove(var.indexes[i].args, 1)
-	compiler.ilgen:release_temp(self_arg)
-      else
-        compiler:compile(var.indexes[i])
-        compiler.ilgen:gettable()
-      end
-    end
-    local tab = compiler.ilgen:get_temp()
-    compiler.ilgen:store_local(tab)
+  elseif var.ref.tag == "index" then
     local val = compiler.ilgen:get_temp()
     compiler.ilgen:store_local(val)
-    compiler.ilgen:load_local(tab)
-    compiler:compile(var.indexes[#var.indexes])
+    compiler:compile(var.ref.table)
+    compiler:compile(var.ref.index)
     compiler.ilgen:load_local(val)
     compiler.ilgen:settable()
-    compiler.ilgen:release_temp(tab)
     compiler.ilgen:release_temp(val)
+  else
+    error("invalid lvalue in code generation")
   end
 end
 
-function visitor.primaryexp(compiler, pexp)
-  compiler:compile(pexp.prefix)
-  for _, exp_index in ipairs(pexp.indexes) do
-    if not exp_index.tag then
-      local nargs = compile.ilgen:argslist(exp_index)
-      compiler.ilgen:call(1, nargs)
-    elseif exp_index.tag == "method" then
-      local self_arg = compiler.ilgen:get_temp()
-      compiler.ilgen:emit(OpCodes.dup)
-      compiler.ilgen:store_local(self_arg)
-      compiler.ilgen:load_string(exp_index.name)
-      compiler.ilgen:gettable()
-      table.insert(exp_index.args, 1, { tag = "name", ref = self_arg })
-      local nargs = compile.ilgen:argslist(exp_index.args)
-      compiler.ilgen:call(1, nargs)
-      table.remove(exp_index.args, 1)
-      compiler.ilgen:release_temp(self_arg)
-    else
-      compiler:compile(exp_index)
-      compiler.ilgen:gettable()
-    end
-  end
+function visitor.index(compiler, pexp)
+  compiler:compile(pexp.table)
+  compiler:compile(pexp.index)
+  compiler.ilgen:gettable()
 end
 
 function visitor.string(compiler, s)
-  compiler.ilgen:load_string(s)
+  compiler.ilgen:load_string(s.val)
 end
 
 function visitor.number(compiler, n)
-  compiler.ilgen:load_number(n)
+  compiler.ilgen:load_number(n.val)
 end
 
-function visitor.expindex(st, expindex)
-  compiler:compile(expindex.exp)
+function visitor.constructor(compiler, cons)
+  compiler.ilgen:new_table()
 end
 
-function visitor.nameindex(compiler, nameindex)
-  compiler.ilgen:load_string(nameindex.name)
-end
-
-function visitor.constructor(st, cons)
-  for _, field in ipairs(cons.fields) do
-    tie_refs(st, field)
-  end
-end
-
-function visitor.namefield(st, namefield)
+function visitor.namefield(compiler, namefield)
+-- TODO
   tie_refs(st, namefield.exp)
 end
 
-function visitor.indexfield(st, indexfield)
+function visitor.indexfield(compiler, indexfield)
+-- TODO
   tie_refs(st, indexfield.name)
   tie_refs(st, indexfield.exp)
-end
-
-function visitor.funcname(compiler, funcname)
-  if #funcname.indexes == 0 and funcname.var.ref then
-    compiler.ilgen:store_local(funcname.var.ref)
-  elseif #funcname.indexes == 0 then
-    compiler.ilgen:store_global(funcname.var.val)
-  else
-    if funcname.var.ref then
-      compiler.ilgen:load_local(funcname.var.ref)
-    else
-      compiler.ilgen:load_global(funcname.var.val)
-    end
-    for i = 1, (#funcname.indexes - 1) do
-      compiler.ilgen:load_string(funcname.indexes[i])
-      compiler.ilgen:gettable()
-    end
-    local tab = compiler.ilgen:get_temp()
-    compiler.ilgen:store_local(tab)
-    local val = compiler.ilgen:get_temp()
-    compiler.ilgen:store_local(val)
-    compiler.ilgen:load_local(tab)
-    compiler.ilgen:load_string(funcname.indexes[#funcname.indexes])
-    compiler.ilgen:load_local(val)
-    compiler.ilgen:settable()
-    compiler.ilgen:release_temp(tab)
-    compiler.ilgen:release_temp(val)
-  end
 end
 
 function visitor.name(compiler, name)
@@ -299,17 +204,37 @@ function visitor.name(compiler, name)
 end
 
 function visitor.binop(compiler, binop)
-  compiler.ilgen:binop(binop.op, function () compiler:compile(binop.left) end,
-		   function () compiler:compile(binop.right) end)
+  local arith_ops = { ["+"] = "add", ["-"] = "sub", ["/"] = "div",
+    ["*"] = "mul", ["%"] = "mod", ["^"] = "exp" }
+  local rel_ops = { ["=="] = "beq", ["~="] = "bne", ["<"] = "blt",
+    [">"] = "bgt", ["<="] = "ble", [">="] = "bge" }
+  if arith_ops[binop.op] then
+    compiler.ilgen:arith(arith_ops[binop.op], binop.left, binop.right)
+  elseif rel_ops[binop.op] then
+    compiler.ilgen:rel(rel_ops[binop.op], binop.left, binop.right)
+  elseif binop.op == "and" or binop.op == "or" then
+    compiler.ilgen["logical_" .. binop.op](compiler.ilgen, 
+					   binop.left, binop.right)
+  else
+    error("invalid binary operator")
+  end
 end
 
 function visitor.unop(compiler, unop)
-  compiler.ilgen:unop(unop.op, function () compiler:compile(unop.operand) end)
+  if unop.op == "-" then
+    compiler.ilgen:neg(unop.operand)
+  elseif unop.op == "#" then
+    compiler.ilgen:len(unop.operand)
+  elseif unop.op == "not" then
+    compiler.ilgen:logical_not(unop.operand)
+  else
+    error("invalid unary operator")
+  end
 end
 
-function visitor.call(compiler, call)
+function visitor.call(compiler, call, nres)
   local self_arg = compiler.ilgen:get_temp()
-  visitor.primaryexp(compiler, call)
+  compiler:compile(call.func)
   if call.method then
     compiler.ilgen:emit(OpCodes.dup)
     compiler.ilgen:store_local(self_arg)
@@ -318,18 +243,20 @@ function visitor.call(compiler, call)
     table.insert(call.args, 1, { tag = "name", ref = self_arg })
   end
   local nargs = compiler.ilgen:argslist(call.args)
-  compiler.ilgen:call(nil, nargs)
+  compiler.ilgen:call(nargs, nres)
   if call.method then
     table.remove(call.args, 1)
   end
   compiler.ilgen:release_temp(self_arg)
 end
 
-function compile(compiler, node)
+function compile(compiler, node, ...)
   if node.tag then 
-    visitor[node.tag](compiler, node)
+    visitor[node.tag](compiler, node, ...)
   else
-    if node == "nil" then
+    if type(node) == "table" then
+      visitor.block(compiler, node)
+    elseif node == "nil" then
       compiler.ilgen:load_nil()
     elseif node == "true" then
       compiler.ilgen:load_true()

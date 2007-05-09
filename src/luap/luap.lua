@@ -448,12 +448,17 @@ Block = (star(Stat) .. opt(LastStat)) %
                     function (tree)
                       local chunk_node = { }
                       for _, v in ipairs(tree[1]) do
-                        table.insert(chunk_node, v[1])
+			if v[1].tag then
+			  table.insert(chunk_node, v[1])
+		        else
+			  for _, v in ipairs(v[1]) do
+			    table.insert(chunk_node, v)
+                          end
+			end  
                       end
                       if tree[2] and tree[2].tag then
                         table.insert(chunk_node, tree[2])
                       end
-		      chunk_node.tag = "block"
                       return chunk_node
                     end
 
@@ -507,16 +512,17 @@ FuncDef = (FUNCTION .. FuncName .. FuncBody) %
 			  tree[2].self = nil
 			end
 			return { tag = "assign", vars = { { tag = "var", ref = name } },
-			  exps = { { tag = "function",
-			      parlist = tree[3].parlist,
-			      block = tree[3].block } } }
+			         exps = { { tag = "function",
+			                    parlist = tree[3].parlist,
+			                    block = tree[3].block } } }
                       end
 
 LocalFuncDef = (LOCAL .. FUNCTION .. NAME .. FuncBody) %
                            function (tree)
-			     return { tag = "local", names = { tree[3] },
-			       exps = { { tag = "function", parlist =
-				   tree[4].parlist, block = tree[4].block } } }
+			     return { { tag = "local", names = { tree[3] } },
+			       	      { tag = "assign", vars = { { tag = "var", ref = tree[3] } },
+					exps = { { tag = "function", parlist =
+				                   tree[4].parlist, block = tree[4].block } } } }
                            end
 
 LocalDef = (LOCAL .. NameList .. opt(ASSIGN .. ExpList1)) %

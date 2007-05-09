@@ -9,10 +9,10 @@ function new()
 end
 
 function _M:enter(func)
-  func.args = {}
-  func.locals = {}
-  func.upvals = {}
   local level = { func = func or self[#self].func }
+  level.func.args = {}
+  level.func.locals = {}
+  level.func.upvals = {}
   self[#self + 1] = level
 end
 
@@ -43,7 +43,7 @@ function _M:search(name)
 	var.isupval = true
 	for j = i, #self, 1 do
 	  local middle_func = self[j].func
-	  if middle_func ~= this_func and middle_func ~= var_func then
+	  if middle_func ~= var_func then
 	    middle_func.upvals[var] = true
 	  end
         end

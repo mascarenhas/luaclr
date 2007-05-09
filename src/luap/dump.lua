@@ -118,7 +118,7 @@ function dump_gfor(sgfor, level)
   table.insert(out, string.rep(" ", level) .. "for " ..
 	       dump_list(sgfor.vars) .. " in " ..
 		 dump_list(sgfor.exps) .. " do")
-  table.insert(out, dump_block(sgfor.block, level + 2))
+  table.insert(out, dump_block(sgfor.block))
   table.insert(out, string.rep(" ", level) .. "end")
   return table.concat(out, "\n")
 end

@@ -12,20 +12,20 @@ end
 
 function visitor.chunk(st, chunk)
   st:enter(chunk)
-  tie_refs(st, chunk.block)
+  visitor.block(st, chunk.block)
   st:leave()
 end
 
 visitor["while"] = function (st, nwhile)
   tie_refs(st, nwhile.exp)
   st:enter()
-  tie_refs(st, nwhile.block)
+  visitor.block(st, nwhile.block)
   st:leave()
 end
 
 visitor["repeat"] = function (st, nrepeat)
   st:enter()
-  tie_refs(st, nrepeat.block)
+  visitor.block(st, nrepeat.block)
   st:leave()
   tie_refs(st, nrepeat.exp)
 end
@@ -33,16 +33,18 @@ end
 visitor["if"] = function (st, nif)
   tie_refs(st, nif.cond)
   st:enter()
-  tie_refs(st, nif.block)
+  visitor.block(st, nif.block)
   st:leave()
-  st:enter()
-  tie_refs(st, nif.block_else)
-  st:leave()
+  if nif.block_else then
+    st:enter()
+    visitor.block(st, nif.block_else)
+    st:leave()
+  end
 end
 
 visitor["do"] = function (st, ndo)
   st:enter()
-  tie_refs(st, ndo.block)
+  visitor.block(st, ndo.block)
   st:leave()
 end
 
@@ -52,7 +54,7 @@ function visitor.nfor(st, nfor)
   tie_refs(st, nfor.step)
   st:enter()
   nfor.var.ref = st:add(nfor.var.val)
-  tie_refs(st, nfor.block)
+  visitor.block(st, nfor.block)
   st:leave()
 end
 
@@ -64,7 +66,7 @@ function visitor.gfor(st, gfor)
   for _, var in ipairs(gfor.vars) do
     var.ref = st:add(var.val)
   end
-  tie_refs(st, gfor.block)
+  visitor.block(st, gfor.block)
   st:leave()
 end
 
@@ -73,7 +75,7 @@ visitor["function"] = function (st, nfunction)
   for _, par in ipairs(nfunction.parlist) do
     par.ref = st:add(par.val, true)
   end
-  tie_refs(st, nfunction.block)
+  visitor.block(st, nfunction.block)
   st:leave()
 end
 
@@ -106,8 +108,8 @@ function visitor.var(st, var)
 end
 
 function visitor.index(st, pexp)
-  tie_refs(st, var.table)
-  tie_refs(st, var.index)
+  tie_refs(st, pexp.table)
+  tie_refs(st, pexp.index)
 end
 
 function visitor.constructor(st, cons)
@@ -146,7 +148,7 @@ function visitor.call(st, call)
 end
 
 function tie_refs(st, node)
-  st = st or cheese.luac.st.new()
+  st = st or cheese.luanetc.st.new()
   if node and node.tag then
     if visitor[node.tag] then visitor[node.tag](st, node) end
   else
