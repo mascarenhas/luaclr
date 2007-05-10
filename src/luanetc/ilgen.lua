@@ -264,7 +264,7 @@ function _M:arith(op, exp1, exp2)
   self:release_temp(retval)
 end
 
-function _M:rel(op, exp1, exp2)
+function _M:rel(op, exp1, exp2, label)
   local load_true = self:define_label()
   local slow_track = self:define_label()
   local type_mismatch = self:define_label()
@@ -291,18 +291,28 @@ function _M:rel(op, exp1, exp2)
     self:emit(OpCodes.brtrue, type_mismatch)
     self:emit(OpCodes.ldfld, luavalue_val)
   end
-  self:emit(op, load_true)
-  self:load_false()
+  if label then
+    self:emit(op, label)
+  else
+    self:emit(op, load_true)
+    self:load_false()
+  end
   self:emit(OpCodes.br, out)
-  self:mark_label(load_true)
-  self:load_true()
-  self:emit(OpCodes.br, out)
+  if not label then
+    self:mark_label(load_true)
+    self:load_true()
+    self:emit(OpCodes.br, out)
+  end
   if type(exp1) ~= "number" and exp1.tag ~= "number" then
     self:mark_label(slow_track)
     self.compiler:compile(exp2)
     self:emit(OpCodes.call, rel_method[op])
-    self:emit(OpCodes.brtrue, load_true)
-    self:load_false()
+    if label then
+      self:emit(OpCodes.brtrue, label)
+    else
+      self:emit(OpCodes.brtrue, load_true)
+      self:load_false()
+    end
     self:emit(OpCodes.br, out)
   end
   if type(exp2) ~= "number" and exp2.tag ~= "number"  then
@@ -310,17 +320,16 @@ function _M:rel(op, exp1, exp2)
     self:emit(OpCodes.pop)
     self:emit(OpCodes.pop)
     if op == "beq" then
-      self:load_false()
+      if not label then self:load_false() end
     else
       self:error("type mismatch in comparison")
     end
-    self:emit(OpCodes.br, out)
   end
   self:mark_label(out)
 end
 
 function _M:error(err)
-  self:load_false()
+--  self:load_false()
 end
 
 function _M:logical_and(exp1, exp2)
@@ -558,8 +567,8 @@ function _M:prologue()
       self:emit(OpCodes.stloc, var)
       var.temp = self:get_temp()
     else
-      self:emit(OpCodes.ldloca, var)
-      self:emit(OpCodes.initobj, luavalue_type)
+--      self:emit(OpCodes.ldloca, var)
+--      self:emit(OpCodes.initobj, luavalue_type)
     end
   end
   for _, arg in ipairs(args) do
@@ -603,10 +612,8 @@ end
 
 function _M:class_constructor()
   local func = self.compiler.current_func
-  self:emit(OpCodes.ldloca,0)
-  self:emit(OpCodes.initobj, luavalue_type)
   for val, _ in pairs(func.literals) do
-    self:emit(OpCodes.ldloca, 0)
+    self:emit(OpCodes.ldsflda, self.compiler:get_literal(val))
     if type(val) == "boolean" then
       if val then
 	self:emit(OpCodes.ldsfld, true_singleton)
@@ -622,14 +629,10 @@ function _M:class_constructor()
       self:emit(OpCodes.newobj, string_cons);
       self:emit(OpCodes.stfld, luavalue_ref)
     end
-    self:emit(OpCodes.ldloc_0)
-    self:emit(OpCodes.stsfld, self.compiler:get_literal(val))
   end
-  self:emit(OpCodes.ldloca, 0)
+  self:emit(OpCodes.ldsflda, self.compiler:get_literal())
   self:emit(OpCodes.ldsfld, nil_singleton)
   self:emit(OpCodes.stfld, luavalue_ref)
-  self:emit(OpCodes.ldloc_0)
-  self:emit(OpCodes.stsfld, self.compiler:get_literal())
   self:emit(OpCodes.ret)
 end
 

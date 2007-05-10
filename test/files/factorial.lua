@@ -22,12 +22,11 @@ F = function (f)
 
 factorial = Y(F)   -- factorial is the fixed point of F
 
-print("Fact 1 to 10")
 -- now test it
 function test(x)
 	print(x,factorial(x))
 end
 
-for i = 1, 10 do
+for i = 1, 20 do
 	test(i)
 end
