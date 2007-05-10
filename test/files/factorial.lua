@@ -22,11 +22,12 @@ F = function (f)
 
 factorial = Y(F)   -- factorial is the fixed point of F
 
+print("Fact 1 to 10")
 -- now test it
 function test(x)
-	io.write(x,"! = ",factorial(x),"\n")
+	print(x,factorial(x))
 end
 
-for n=0,16 do
-	test(n)
+for i = 1, 10 do
+	test(i)
 end

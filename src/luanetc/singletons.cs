@@ -1,17 +1,14 @@
+using System;
+
 namespace Lua {
-  public abstract class Singleton {
-    public override Value Equals(Reference o) {
-      Value v;
-      if(o == this)
-	v.O = True.Instance;
-      else
-	v.O = False.Instance;
-      return v;
+  public abstract class Singleton : Reference {
+    public override bool Equals(Reference o) {
+      return (o == this);
     }
-    public override Value LessThan(Reference o) {
+    public override bool LessThan(Reference o) {
       throw new Exception("not supported");
     }
-    public override Value LessThanOrEqual(Reference o) {
+    public override bool LessThanOrEqual(Reference o) {
       throw new Exception("not supported");
     }
 
@@ -72,37 +69,19 @@ namespace Lua {
   }
 
   public class Nil : Singleton {
-    public static readonly Value Instance;
-
-    static Nil() {
-      Value v;
-      v.O = new Nil();
-      Instance = v;
-    }
+    public static readonly Reference Instance = new Nil();
 
     public Nil() { }
   }
 
   public class True : Singleton {
-    public static readonly Value Instance;
-
-    static True() {
-      Value v;
-      v.O = new True();
-      Instance = v;
-    }
+    public static readonly Reference Instance = new True();
 
     public True() { }
   }
 
   public class False : Singleton {
-    public static readonly Value Instance;
-
-    static False() {
-      Value v;
-      v.O = new False();
-      Instance = v;
-    }
+    public static readonly Reference Instance = new False();
 
     public False() { }
   }

@@ -2,57 +2,42 @@ using System;
 
 namespace Lua {
   public abstract class Reference {
-    public static Value Add(Value v1, Value v2) { }
-    public static Value Add(double v1, Value v2) { }
-    public static Value Subtract(Value v1, Value v2) { }
-    public static Value Subtract(double v1, Value v2) { }
-    public static Value Multiply(Value v1, Value v2) { }
-    public static Value Multiply(double v1, Value v2) { }
-    public static Value Divide(Value v1, Value v2) { }
-    public static Value Divide(double v1, Value v2) { }
-    public static Value Mod(Value v1, Value v2) { }
-    public static Value Mod(double v1, Value v2) { }
-    public static Value Pow(Value v1, Value v2) { }
-    public static Value Pow(double v1, Value v2) { }
-    public static Value Negate(Value v) { }
+    public static Value Add(Value v1, Value v2) { return new Value(); }
+    public static Value Add(double v1, Value v2) { return new Value(); }
+    public static Value Subtract(Value v1, Value v2) { return new Value(); }
+    public static Value Subtract(double v1, Value v2) { return new Value(); }
+    public static Value Multiply(Value v1, Value v2) { return new Value(); }
+    public static Value Multiply(double v1, Value v2) { return new Value(); }
+    public static Value Divide(Value v1, Value v2) { return new Value(); }
+    public static Value Divide(double v1, Value v2) { return new Value(); }
+    public static Value Mod(Value v1, Value v2) { return new Value(); }
+    public static Value Mod(double v1, Value v2) { return new Value(); }
+    public static Value Pow(Value v1, Value v2) { return new Value(); }
+    public static Value Pow(double v1, Value v2) { return new Value(); }
+    public static Value Negate(Value v) { return new Value(); }
 
-    public static Value Equal(Value v1, Value v2) {
+    public static bool Equal(Value v1, Value v2) {
       return v1.O.Equals(v2.O);
     }
-    public static Value NotEqual(Value v1, Value v2) {
-      Value v = v1.O.Equals(v2.O);
-      if(v.O = True.Instance.O)
-	v.O = False.Instance.O;
-      else
-	v.O = True.Instance.O;
-      return v;
+    public static bool NotEqual(Value v1, Value v2) {
+      return !v1.O.Equals(v2.O);
     }
-    public static Value LessThan(Value v1, Value v2) {
+    public static bool LessThan(Value v1, Value v2) {
       return v1.O.LessThan(v2.O);
     }
-    public static Value LessThanOrEqual(Value v1, Value v2) {
+    public static bool LessThanOrEqual(Value v1, Value v2) {
       return v1.O.LessThanOrEqual(v2.O);
     }
-    public static Value GreaterThan(Value v1, Value v2) {
-      Value v = v1.O.LessThanOrEqual(v2.O);
-      if(v.O = True.Instance.O)
-	v.O = False.Instance.O;
-      else
-	v.O = True.Instance.O;
-      return v;
+    public static bool GreaterThan(Value v1, Value v2) {
+      return !v1.O.LessThanOrEqual(v2.O);
     }
-    public static Value GreaterThanorEqual(Value v1, Value v2) {
-      Value v = v1.O.LessThan(v2.O);
-      if(v.O = True.Instance.O)
-	v.O = False.Instance.O;
-      else
-	v.O = True.Instance.O;
-      return v;
+    public static bool GreaterThanorEqual(Value v1, Value v2) {
+      return !v1.O.LessThan(v2.O);
     }
 
-    public abstract Value Equals(Reference o);
-    public abstract Value LessThan(Reference o);
-    public abstract Value LessThanOrEqual(Reference o);
+    public abstract bool Equals(Reference o);
+    public abstract bool LessThan(Reference o);
+    public abstract bool LessThanOrEqual(Reference o);
 
     public abstract Value[] Invoke(Value[] args);
     public abstract Value[] Invoke();

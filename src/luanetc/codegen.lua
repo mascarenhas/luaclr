@@ -13,6 +13,8 @@ end
 function visitor.chunk(compiler, chunk)
   compiler:start_function(chunk)
   compiler:compile(chunk.block)
+  compiler.ilgen:emit(OpCodes.ldnull)
+  compiler.ilgen:emit(OpCodes.ret)
   compiler:end_function()
 end
 
@@ -59,7 +61,7 @@ end
 
 function visitor.nfor(compiler, nfor)
   local test = compiler.ilgen:define_label()
-  local out = compiler.ilgen:define_label()
+  local loop = compiler.ilgen:define_label()
   compiler:compile(nfor.start)
   compiler.ilgen:store_local(nfor.var.ref)
   local temp_finish = compiler.ilgen:get_temp()
@@ -70,20 +72,20 @@ function visitor.nfor(compiler, nfor)
     compiler:compile(nfor.step)
     compiler.ilgen:store_local(temp_step)
   end
+  compiler.ilgen:emit(OpCodes.br, test)
+  compiler.ilgen:mark_label(loop)
   compiler.ilgen:start_loop()
-  compiler.ilgen:mark_label(test)
-  compiler.ilgen:jump_if_not_equal(nfor.var,
-			           { tag = "name", ref = temp_finish })
   compiler:compile(nfor.block)
-  if temp_step then
+  if nfor.step then
     compiler.ilgen:add(nfor.var, { tag = "name", ref = temp_step })
     compiler.ilgen:store_local(nfor.var.ref)
   else
-    compiler.ilgen:add(nfor.var, 1)
+    compiler.ilgen:add(nfor.var, { tag = "number", val = 1})
     compiler.ilgen:store_local(nfor.var.ref)
   end
-  compiler.ilgen:emit(OpCodes.br, test)
-  compiler.ilgen:mark_label(out)
+  compiler.ilgen:mark_label(test)
+  compiler.ilgen:rel("bgt", nfor.var, { tag = "name", ref = temp_finish })
+  compiler.ilgen:jump_if_false(loop)
   compiler.ilgen:end_loop()
   compiler.ilgen:release_temp(temp_finish)
   compiler.ilgen:release_temp(temp_step)
@@ -100,6 +102,7 @@ function visitor.gfor(compiler, gfor)
   local test = compile.ilgen:define_label()
   compile.ilgen:mark_label(test)
   compiler.ilgen:load_local(temp_iter)
+  compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
   compiler.ilgen:load_local(temp_state)
   compiler.ilgen:load_local(temp_control)
   compiler.ilgen:call(2, #gfor.vars)
@@ -119,14 +122,18 @@ end
 visitor["function"] = function (compiler, nfunction)
   compiler:start_function(nfunction)
   compiler:compile(nfunction.block)
+  compiler.ilgen:emit(OpCodes.ldnull)
+  compiler.ilgen:emit(OpCodes.ret)
   local func = compiler:end_function()
   compiler.ilgen:new_func(func)
 end
 
 visitor["local"] = function (compiler, nlocal)
-  compiler.ilgen:explist(nlocal.exps, #nlocal.names)
-  for i = #nlocal.names, 1, -1 do
-    compiler.ilgen:store_local(nlocal.names[i].ref)
+  if nlocal.exps then
+    compiler.ilgen:explist(nlocal.exps, #nlocal.names)
+    for i = #nlocal.names, 1, -1 do
+      compiler.ilgen:store_local(nlocal.names[i].ref)
+    end
   end
 end
 
@@ -157,6 +164,7 @@ function visitor.var(compiler, var)
     local val = compiler.ilgen:get_temp()
     compiler.ilgen:store_local(val)
     compiler:compile(var.ref.table)
+    compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
     compiler:compile(var.ref.index)
     compiler.ilgen:load_local(val)
     compiler.ilgen:settable()
@@ -168,6 +176,7 @@ end
 
 function visitor.index(compiler, pexp)
   compiler:compile(pexp.table)
+  compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
   compiler:compile(pexp.index)
   compiler.ilgen:gettable()
 end
@@ -233,8 +242,9 @@ function visitor.unop(compiler, unop)
 end
 
 function visitor.call(compiler, call, nres)
-  local self_arg = compiler.ilgen:get_temp()
+  local self_arg = compiler.ilgen:get_temp(compiler.ilgen.luaref_type)
   compiler:compile(call.func)
+  compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
   if call.method then
     compiler.ilgen:emit(OpCodes.dup)
     compiler.ilgen:store_local(self_arg)
@@ -251,12 +261,12 @@ function visitor.call(compiler, call, nres)
 end
 
 function compile(compiler, node, ...)
-  if node.tag then 
+  if node and node.tag then 
     visitor[node.tag](compiler, node, ...)
   else
     if type(node) == "table" then
       visitor.block(compiler, node)
-    elseif node == "nil" then
+    elseif type(node) == "nil" or node == "nil" then
       compiler.ilgen:load_nil()
     elseif node == "true" then
       compiler.ilgen:load_true()

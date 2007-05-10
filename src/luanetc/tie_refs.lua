@@ -51,7 +51,9 @@ end
 function visitor.nfor(st, nfor)
   tie_refs(st, nfor.start)
   tie_refs(st, nfor.finish)
-  tie_refs(st, nfor.step)
+  if nfor.step then
+    tie_refs(st, nfor.step)
+  end
   st:enter()
   nfor.var.ref = st:add(nfor.var.val)
   visitor.block(st, nfor.block)
@@ -81,7 +83,7 @@ end
 
 visitor["local"] = function (st, nlocal)
   for _, exp in ipairs(nlocal.exps) do
-    tie_refs(st, exp)
+      tie_refs(st, exp)
   end
   for _, var in ipairs(nlocal.names) do
     var.ref = st:add(var.val)

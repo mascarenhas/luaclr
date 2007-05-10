@@ -8,29 +8,18 @@ namespace Lua {
       this.S = s;
     }
 
-    public override Value Equals(Reference o) {
-      Value v;
-      if((o instanceof String) && (((String)o).S == this.S))
-	v.O = True.Instance;
-      else
-	v.O = False.Instance;
-      return v;
+    public override int GetHashCode() { return this.S.GetHashCode(); }
+
+    public override string ToString() { return this.S; }
+
+    public override bool Equals(Reference o) {
+      return ((o is String) && (((String)o).S == this.S));
     }
-    public override Value LessThan(Reference o) {
-      Value v;
-      if((o instanceof String) && (((String)o).S < this.S))
-	v.O = True.Instance;
-      else
-	v.O = False.Instance;
-      return v;
+    public override bool LessThan(Reference o) {
+      return ((o is String) && (string.Compare(((String)o).S, this.S) < 0));
     }
-    public override Value LessThanOrEqual(Reference o) {
-      Value v;
-      if((o instanceof String) && (((String)o).S <= this.S))
-	v.O = True.Instance;
-      else
-	v.O = False.Instance;
-      return v;
+    public override bool LessThanOrEqual(Reference o) {
+      return ((o is String) && (string.Compare(((String)o).S, this.S) <= 0));
     }
 
     public override Value[] Invoke(Value[] args) {
@@ -68,7 +57,8 @@ namespace Lua {
 
     public override Value Length() {
       Value v;
-      v.N = S.Length();
+      v.O = null;
+      v.N = S.Length;
       return v;
     }
 

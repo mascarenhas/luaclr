@@ -1,8 +1,7 @@
 -- fibonacci function with cache
 
 -- very inefficient fibonacci function
-function fib(n)
-	N=N+1
+local function fib(n)
 	if n<2 then
 		return n
 	else
@@ -25,16 +24,19 @@ end
 
 -- run and time it
 function test(s,f)
-	N=0
 	local c=os.clock()
-	local v=f(n)
-	local t=os.clock()-c
-	print(s,n,v,t,N)
+	local v
+	local n = n
+	for i = 1, 500 do
+	  v=f(n)
+        end
+	local t=os.clock()
+	print(s,n,v,t-c)
 end
 
-n=arg[1] or 24		-- for other values, do lua fib.lua XX
+n=24
 n=tonumber(n)
-print("","n","value","time","evals")
+print("","n","value","time")
 test("plain",fib)
 fib=cache(fib)
 test("cached",fib)

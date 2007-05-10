@@ -9,10 +9,12 @@ function new()
 end
 
 function _M:enter(func)
-  local level = { func = func or self[#self].func }
-  level.func.args = {}
-  level.func.locals = {}
-  level.func.upvals = {}
+  local level = { func = (func or self[#self].func) }
+  if func then
+    func.args = {}
+    func.locals = {}
+    func.upvals = {}
+  end
   self[#self + 1] = level
 end
 
