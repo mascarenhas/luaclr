@@ -105,7 +105,7 @@ local function print_op(opcode, arg, func_type)
       io.write("label" .. arg)
     elseif type(arg) == "table" then
       if opcode == "ldfld" or opcode == "stfld" and arg.isupval then
-	io.write("object[] " .. func_type .. "::" .. arg.name)
+	io.write("class [lua]Lua.UpValue " .. func_type .. "::" .. arg.name)
       else
         io.write(arg.name)
       end
@@ -129,7 +129,7 @@ local function print_literal(type, lit)
 end
 
 local function print_upvalue(func_type, upval)
-  print("  .field public object[] " .. upval.name)
+  print("  .field public class [lua]Lua.UpValue " .. upval.name)
 end
 
 local function print_method_name(func, nargs, ret_type, invoke_name)
@@ -162,7 +162,7 @@ local function print_locals(locals)
   local tab = {}
   for _, l in ipairs(locals) do
     if l.isupval then
-      tab[#tab + 1] = "object[] " .. l.name 
+      tab[#tab + 1] = "class [lua]Lua.UpValue " .. l.name 
     else 
       local ltype = l.type or "object"
       tab[#tab + 1] = ltype .. " " .. l.name

@@ -4,6 +4,9 @@ module(..., package.seeall)
 
 luavalue_type = "object"
 luavalue_array_type = "object[]"
+luavalue_ref = "object [lua]Lua.UpValue::Ref"
+luavalue_ref_type = "class [lua]Lua.UpValue"
+luavalue_ref_cons = "instance void [lua]Lua.UpValue::.ctor()"
 luaref_type = "class [lua]Lua.Reference"
 int4_type = "int32"
 double_type = "float64"
@@ -119,16 +122,14 @@ function _M:store_local(localvar)
     if localvar.func == self.compiler.current_func then
       self:store_local(localvar.temp)
       self:emit(OpCodes.ldloc, localvar)
-      self:emit(OpCodes.ldc_i4_0)
       self:load_local(localvar.temp)
-      self:emit(OpCodes.stelem, luavalue_type)
+      self:emit(OpCodes.stfld, luavalue_ref)
     else
       self:store_local(localvar.temp)
       self:emit(OpCodes.ldarg_0)
       self:emit(OpCodes.ldfld, localvar)
-      self:emit(OpCodes.ldc_i4_0)
       self:load_local(localvar.temp)
-      self:emit(OpCodes.stelem, luavalue_type)
+      self:emit(OpCodes.stfld, luavalue_ref)
     end
   elseif localvar.isarg then
     self:emit(OpCodes.starg, localvar)
@@ -141,13 +142,11 @@ function _M:load_local(localvar)
   if localvar.isupval then
     if localvar.func == self.compiler.current_func then
       self:emit(OpCodes.ldloc, localvar)
-      self:emit(OpCodes.ldc_i4_0)
-      self:emit(OpCodes.ldelem, luavalue_type)
+      self:emit(OpCodes.ldfld, luavalue_ref)
     else
       self:emit(OpCodes.ldarg_0)
       self:emit(OpCodes.ldfld, localvar)
-      self:emit(OpCodes.ldc_i4_0)
-      self:emit(OpCodes.ldelem, luavalue_type)
+      self:emit(OpCodes.ldfld, luavalue_ref)
     end
   elseif localvar.isarg then
     self:emit(OpCodes.ldarg, localvar)
@@ -578,8 +577,7 @@ function _M:prologue()
   local args, locals = func.args, func.locals
   for _, var in ipairs(locals) do
     if var.isupval then
-      self:emit(OpCodes.ldc_i4_1)
-      self:emit(OpCodes.newarr, luavalue_type)
+      self:emit(OpCodes.newobj, luavalue_ref_cons)
       self:emit(OpCodes.stloc, var)
       var.temp = self:get_temp()
     end
@@ -587,13 +585,11 @@ function _M:prologue()
   for _, arg in ipairs(args) do
     if arg.isupval then
       locals[#locals + 1] = arg
-      self:emit(OpCodes.ldc_i4_1)
-      self:emit(OpCodes.newarr, luavalue_type)
+      self:emit(OpCodes.newobj, luavalue_ref_cons)
       self:emit(OpCodes.stloc, arg)
       self:emit(OpCodes.ldloc, arg)
-      self:emit(OpCodes.ldc_i4_0)
       self:emit(OpCodes.ldarg, arg)
-      self:emit(OpCodes.stelem, luavalue_type)
+      self:emit(OpCodes.stfld, luavalue_ref)
       arg.isarg = false
     end
   end
@@ -609,7 +605,7 @@ function _M:constructor()
   local func = self.compiler.current_func
   local args = {}
   for upval, _ in pairs(func.upvals) do
-    args[#args + 1] = "object[] " .. upval.name
+    args[#args + 1] = "class [lua]Lua.UpValue " .. upval.name
     self:emit(OpCodes.ldarg_0)
     self:emit(OpCodes.ldarg, #args)
     self:emit(OpCodes.stfld, upval)
