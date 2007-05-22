@@ -2,7 +2,7 @@ using System;
 
 namespace Lua {
   public class Print : CLRFunction {
-    public override Value[] Invoke(Value[] args) {
+    public override object[] Invoke(object[] args) {
       for(int i = 0; i < args.Length - 1; i++) {
 	Console.Write(args[i]);
 	Console.Write("\t");
@@ -11,28 +11,21 @@ namespace Lua {
 	Console.Write(args[args.Length - 1]);
       }
       Console.WriteLine();
-      Value v;
-      v.O = Nil.Instance;
-      v.N = 0;
-      return new Value[] { v };
+      return new object[] { Nil.Instance };
     }
   }
 
   public class ToNumber : CLRFunction {
-    public override Value[] Invoke(Value[] args) {
-      Value v;
-      v.O = null;
-      v.N = args[0].N;
-      return new Value[] { v };
+    public override object[] Invoke(object[] args) {
+      object o = args[0];
+      if(!(o is double)) o = 0;
+      return new object[] { o };
     }
   }
 
   public class Clock : CLRFunction {
-    public override Value[] Invoke(Value[] args) {
-      Value v;
-      v.O = null;
-      v.N = ((double)(DateTime.Now.Ticks))/((double)10000000);
-      return new Value[] { v };
+    public override object[] Invoke(object[] args) {
+      return new object[] { ((double)(DateTime.Now.Ticks))/((double)10000000) };
     }
   }
 }

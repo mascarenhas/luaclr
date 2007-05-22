@@ -2,12 +2,11 @@ local OpCodes = require "cheese.luanetc.opcodes"
 
 module(..., package.seeall)
 
-luavalue_type = "valuetype [lua]Lua.Value"
-luavalue_array_type = "valuetype [lua]Lua.Value[]"
+luavalue_type = "object"
+luavalue_array_type = "object[]"
 luaref_type = "class [lua]Lua.Reference"
-luavalue_ref = "class [lua]Lua.Reference [lua]Lua.Value::O"
-luavalue_val = "float64 [lua]Lua.Value::N"
 int4_type = "int32"
+double_type = "float64"
 array_copy = "void [mscorlib]System.Array::Copy(class [mscorlib]System.Array,int32,class [mscorlib]System.Array,int32,int32)"
 env_field = "class [lua]Lua.Reference [lua]Lua.Closure::Env"
 closure_cons = "instance void [lua]Lua.Closure::.ctor()"
@@ -18,44 +17,54 @@ nil_singleton = "class [lua]Lua.Reference [lua]Lua.Nil::Instance"
 false_singleton = "class [lua]Lua.Reference [lua]Lua.False::Instance"
 true_singleton = "class [lua]Lua.Reference [lua]Lua.True::Instance"
 
-gettable_method = "instance valuetype [lua]Lua.Value [lua]Lua.Reference::get_Item(valuetype [lua]Lua.Value)"
-settable_method = "instance void [lua]Lua.Reference::set_Item(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)"
-neg_method = "valuetype [lua]Lua.Value [lua]Lua.Reference::Negate(valuetype [lua]Lua.Value)"
-len_method = "instance valuetype [lua]Lua.Value [lua]Lua.Reference::Length(valuetype [lua]Lua.Value)"
+gettable_method = "instance object [lua]Lua.Reference::get_Item(object)"
+settable_method = "instance void [lua]Lua.Reference::set_Item(object, object)"
+neg_method = "object [lua]Lua.Reference::Negate(object)"
+len_method = "instance object [lua]Lua.Reference::Length(object)"
 arith_method = {
-  add = "valuetype [lua]Lua.Value [lua]Lua.Reference::Add(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  sub = "valuetype [lua]Lua.Value [lua]Lua.Reference::Subtract(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  mul = "valuetype [lua]Lua.Value [lua]Lua.Reference::Multiply(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  div = "valuetype [lua]Lua.Value [lua]Lua.Reference::Divide(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  mod = "valuetype [lua]Lua.Value [lua]Lua.Reference::Mod(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  exp = "valuetype [lua]Lua.Value [lua]Lua.Reference::Pow(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)"
+  add = "instance object [lua]Lua.Reference::Add(object)",
+  sub = "instance object [lua]Lua.Reference::Subtract(object)",
+  mul = "instance object [lua]Lua.Reference::Multiply(object)",
+  div = "instance object [lua]Lua.Reference::Divide(object)",
+  mod = "instance object [lua]Lua.Reference::Mod(object)",
+  exp = "instance object [lua]Lua.Reference::Pow(object)"
 }
 arith_method_slow = {
-  add = "valuetype [lua]Lua.Value [lua]Lua.Reference::Add(float64, valuetype [lua]Lua.Value)",
-  sub = "valuetype [lua]Lua.Value [lua]Lua.Reference::Subtract(float64, valuetype [lua]Lua.Value)",
-  mul = "valuetype [lua]Lua.Value [lua]Lua.Reference::Multiply(float64, valuetype [lua]Lua.Value)",
-  div = "valuetype [lua]Lua.Value [lua]Lua.Reference::Divide(float64, valuetype [lua]Lua.Value)",
-  mod = "valuetype [lua]Lua.Value [lua]Lua.Reference::Mod(float64, valuetype [lua]Lua.Value)",
-  exp = "valuetype [lua]Lua.Value [lua]Lua.Reference::Pow(float64, valuetype [lua]Lua.Value)"
+  add = "instance object [lua]Lua.Reference::Add(float64)",
+  sub = "instance object [lua]Lua.Reference::Subtract(float64)",
+  mul = "instance object [lua]Lua.Reference::Multiply(float64)",
+  div = "instance object [lua]Lua.Reference::Divide(float64)",
+  mod = "instance object [lua]Lua.Reference::Mod(float64)",
+  exp = "instance object [lua]Lua.Reference::Pow(float64)"
 }
 rel_method = {
-  beq = "bool [lua]Lua.Reference::Equal(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  bne = "bool [lua]Lua.Reference::NotEqual(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  blt = "bool [lua]Lua.Reference::LessThan(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  bgt = "bool [lua]Lua.Reference::GreaterThan(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  ble = "bool [lua]Lua.Reference::LessThanOrEqual(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)",
-  bge = "bool [lua]Lua.Reference::GreaterThanOrEqual(valuetype [lua]Lua.Value, valuetype [lua]Lua.Value)"
+  beq = "instance bool [lua]Lua.Reference::Equal(class [lua]Lua.Reference)",
+  bne = "instance bool [lua]Lua.Reference::NotEqual(class [lua]Lua.Reference)",
+  blt = "instance bool [lua]Lua.Reference::LessThan(class [lua]Lua.Reference)",
+  bgt = "instance bool [lua]Lua.Reference::GreaterThan(class [lua]Lua.Reference)",
+  ble = "instance bool [lua]Lua.Reference::LessThanOrEqual(class [lua]Lua.Reference)",
+  bge = "instance bool [lua]Lua.Reference::GreaterThanOrEqual(class [lua]Lua.Reference)"
 }
 
 max_args = 7
-call_with_array = "instance valuetype [lua]Lua.Value[] [lua]Lua.Reference::Invoke(valuetype [lua]Lua.Value[])"
-local call_with = {}
-setmetatable(call_with, {
-  __index = function (tab, i)
-	      local args = {}
-	      for j = 1, i do args[#args + 1] = "valuetype [lua]Lua.Value" end
-	      return "instance valuetype [lua]Lua.Value[] [lua]Lua.Reference::Invoke(" .. table.concat(args, ", ") .. ")"
-	    end })
+local function call_with(nargs, nres)
+  local ret_type, invoke_name
+  if not nres or nres == 0 or nres == 1 then
+    ret_type = "object"
+    invoke_name = "InvokeS"
+  else
+    ret_type = "object[]"
+    invoke_name = "InvokeM"
+  end
+  if not nargs then
+    return "instance " .. ret_type .. " [lua]Lua.Reference::" .. invoke_name .. "(object[])"
+  else
+    local args = {}
+    for j = 1, nargs do args[#args + 1] = "object" end
+    return "instance " .. ret_type .. " [lua]Lua.Reference::" .. invoke_name .. 
+      "(" .. table.concat(args, ", ") .. ")"
+  end
+end
 
 function new(compiler)
   local ilgen = { ops = {}, labels = {}, loops = {}, 
@@ -68,18 +77,15 @@ function _M:jump_if_false(to)
   local temp = self:get_temp()
   self:store_local(temp)
   self:load_local(temp)
-  self:emit(OpCodes.ldfld, luavalue_ref)
   self:emit(OpCodes.ldsfld, nil_singleton)
   self:emit(OpCodes.beq, to)
   self:load_local(temp)
-  self:emit(OpCodes.ldfld, luavalue_ref)
   self:emit(OpCodes.ldsfld, false_singleton)
   self:emit(OpCodes.beq, to)
   self:release_temp(temp)
 end
 
 function _M:jump_if_nil(to)
-  self:emit(OpCodes.ldfld, luavalue_ref)
   self:emit(OpCodes.ldsfld, nil_singleton)
   self:emit(OpCodes.beq, to)
 end
@@ -183,39 +189,26 @@ function _M:jump_if_not_equal(exp1, exp2, to)
 end
 
 function _M:neg(exp)
-  local retval = self:get_temp()  
   local slow_track = self:define_label()
   local out = self:define_label()
-  self:emit(OpCodes.ldloca, retval)
-  self:emit(OpCodes.dup)
   self.compiler:compile(exp)
   self:emit(OpCodes.dup)
-  self:emit(OpCodes.ldfld, luavalue_ref)
-  self:emit(OpCodes.brtrue, slow_track)
-  self:emit(OpCodes.ldfld, luavalue_val)
+  self:emit(OpCodes.isinst, double_type)
+  self:emit(OpCodes.brnull, slow_track)
+  self:emit(OpCodes.unbox_any, double_type)
   self:emit(OpCodes.neg)
-  self:emit(OpCodes.stfld, luavalue_val)
-  self:emit(OpCodes.ldnull)
-  self:emit(OpCodes.stfld, luavalue_ref)
+  self:emit(OpCodes.box, double_type)
   self:emit(OpCodes.br, out)
   self:mark_label(slow_track)
-  self:emit(OpCodes.call, neg_method)
-  self:store_local(retval)
-  self:emit(OpCodes.pop)
-  self:emit(OpCodes.pop)
-  self:emit(OpCodes.br, out)
+  self:emit(OpCodes.castclass, luaref_type)
+  self:emit(OpCodes.callvirt, neg_method)
   self:mark_label(out)
-  self:load_local(retval)
-  self:release_temp(retval)
 end
 
 function _M:arith(op, exp1, exp2)
-  local retval = self:get_temp()  
   local slow_track = self:define_label()
   local very_slow_track = self:define_label()
   local out = self:define_label()
-  self:emit(OpCodes.ldloca, retval)
-  self:emit(OpCodes.dup)
   if type(exp1) == "number" then
     self:emit(OpCodes.ldc_r8, exp1)
   elseif exp1.tag == "number" then
@@ -223,9 +216,9 @@ function _M:arith(op, exp1, exp2)
   else
     self.compiler:compile(exp1)
     self:emit(OpCodes.dup)
-    self:emit(OpCodes.ldfld, luavalue_ref)
-    self:emit(OpCodes.brtrue, slow_track)
-    self:emit(OpCodes.ldfld, luavalue_val)
+    self:emit(OpCodes.isinst, double_type)
+    self:emit(OpCodes.brnull, slow_track)
+    self:emit(OpCodes.unbox_any, double_type)
   end
   if type(exp2) == "number" then
     self:emit(OpCodes.ldc_r8, exp2)
@@ -234,40 +227,41 @@ function _M:arith(op, exp1, exp2)
   else
     self.compiler:compile(exp2)
     self:emit(OpCodes.dup)
-    self:emit(OpCodes.ldfld, luavalue_ref)
-    self:emit(OpCodes.brtrue, very_slow_track)
-    self:emit(OpCodes.ldfld, luavalue_val)
+    self:emit(OpCodes.isinst, double_type)
+    self:emit(OpCodes.brnull, very_slow_track)
+    self:emit(OpCodes.unbox_any, double_type)
   end
   self:emit(op)
-  self:emit(OpCodes.stfld, luavalue_val)
-  self:emit(OpCodes.ldnull)
-  self:emit(OpCodes.stfld, luavalue_ref)
+  self:emit(OpCodes.box, double_type)
   self:emit(OpCodes.br, out)
   if type(exp1) ~= "number" and exp1.tag ~= "number" then
     self:mark_label(slow_track)
+    self:emit(OpCodes.castclass, luaref_type)
     self.compiler:compile(exp2)
-    self:emit(OpCodes.call, arith_method[op])
-    self:store_local(retval)
-    self:emit(OpCodes.pop)
-    self:emit(OpCodes.pop)
+    self:emit(OpCodes.callvirt, arith_method[op])
     self:emit(OpCodes.br, out)
   end
   if type(exp2) ~= "number" and exp2.tag ~= "number" then
     self:mark_label(very_slow_track)
-    self:emit(OpCodes.call, arith_method_slow[op])
-    self:store_local(retval)
-    self:emit(OpCodes.pop)
-    self:emit(OpCodes.pop)
+    local temp1 = self:get_temp()
+    local temp2 = self:get_temp(double_type)
+    self:emit(OpCodes.stloc, temp1)
+    self:emit(OpCodes.stloc, temp2)
+    self:emit(OpCodes.ldloc, temp1)
+    self:emit(OpCodes.castclass, luaref_type)
+    self:emit(OpCodes.ldloc, temp2)    
+    self:emit(OpCodes.callvirt, arith_method_slow[op])
+    self:release_temp(temp2)
+    self:release_temp(temp1)
   end
   self:mark_label(out)
-  self:load_local(retval)
-  self:release_temp(retval)
 end
 
 function _M:rel(op, exp1, exp2, label)
   local load_true = self:define_label()
   local slow_track = self:define_label()
-  local type_mismatch = self:define_label()
+  local type_mismatch_number = self:define_label()
+  local type_mismatch_ref = self:define_label()
   local out = self:define_label()
   if type(exp1) == "number" then
     self:emit(OpCodes.ldc_r8, exp1)
@@ -276,9 +270,9 @@ function _M:rel(op, exp1, exp2, label)
   else
     self.compiler:compile(exp1)
     self:emit(OpCodes.dup)
-    self:emit(OpCodes.ldfld, luavalue_ref)
-    self:emit(OpCodes.brtrue, slow_track)
-    self:emit(OpCodes.ldfld, luavalue_val)
+    self:emit(OpCodes.isinst, double_type)
+    self:emit(OpCodes.brnull, slow_track)
+    self:emit(OpCodes.unbox_any, double_type)
   end
   if type(exp2) == "number" then
     self:emit(OpCodes.ldc_r8, exp2)
@@ -287,9 +281,9 @@ function _M:rel(op, exp1, exp2, label)
   else
     self.compiler:compile(exp2)
     self:emit(OpCodes.dup)
-    self:emit(OpCodes.ldfld, luavalue_ref)
-    self:emit(OpCodes.brtrue, type_mismatch)
-    self:emit(OpCodes.ldfld, luavalue_val)
+    self:emit(OpCodes.isinst, double_type)
+    self:emit(OpCodes.brnull, type_mismatch_number)
+    self:emit(OpCodes.unbox_any, double_type)
   end
   if label then
     self:emit(op, label)
@@ -305,18 +299,42 @@ function _M:rel(op, exp1, exp2, label)
   end
   if type(exp1) ~= "number" and exp1.tag ~= "number" then
     self:mark_label(slow_track)
-    self.compiler:compile(exp2)
-    self:emit(OpCodes.call, rel_method[op])
-    if label then
-      self:emit(OpCodes.brtrue, label)
+    if type(exp2) ~= "number" and exp2.tag ~="number" then
+        self:emit(OpCodes.castclass, luaref_type)
+	self.compiler:compile(exp2)
+	self:emit(OpCodes.dup)
+	self:emit(OpCodes.isinst, luaref_type)
+        self:emit(OpCodes.brnull, type_mismatch_ref)	
+        self:emit(OpCodes.castclass, luaref_type)
+        self:emit(OpCodes.callvirt, rel_method[op])
+        if label then
+          self:emit(OpCodes.brtrue, label)
+        else
+          self:emit(OpCodes.brtrue, load_true)
+          self:load_false()
+        end
+        self:emit(OpCodes.br, out)
+        self:mark_label(type_mismatch_ref)
+        self:emit(OpCodes.pop)
+        self:emit(OpCodes.pop)
+        if op == "beq" then
+          if not label then self:load_false() end
+        else
+          self:error("type mismatch in comparison")
+        end
+        self:emit(OpCodes.br, out)
     else
-      self:emit(OpCodes.brtrue, load_true)
-      self:load_false()
+      self:emit(OpCodes.pop)
+      if op == "beq" then
+        if not label then self:load_false() end
+      else
+        self:error("type mismatch in comparison")
+      end
+      self:emit(OpCodes.br, out)
     end
-    self:emit(OpCodes.br, out)
   end
   if type(exp2) ~= "number" and exp2.tag ~= "number"  then
-    self:mark_label(type_mismatch)
+    self:mark_label(type_mismatch_number)
     self:emit(OpCodes.pop)
     self:emit(OpCodes.pop)
     if op == "beq" then
@@ -329,6 +347,9 @@ function _M:rel(op, exp1, exp2, label)
 end
 
 function _M:error(err)
+  self:emit(OpCodes.ldstr, err)
+  self:emit(OpCodes.newobj, "instance void [mscorlib]System.Exception::.ctor(string)")
+  self:emit(OpCodes.throw)
 --  self:load_false()
 end
 
@@ -371,7 +392,7 @@ end
 
 function _M:len(exp)
   self.compiler:compile(exp)
-  self:emit(OpCodes.ldfld, luavalue_ref)
+  self:emit(OpCodes.castclass, luaref_type)
   self:emit(OpCodes.callvirt, len_method)
 end
 
@@ -447,6 +468,11 @@ function _M:explist(list, adjust_n)
       end
     end    
   end
+  while i <= #list do
+    self.compiler:compile(list[i])
+    self:emit(OpCodes.pop)
+    i = i + 1
+  end
 end
 
 function _M:store_global(name)
@@ -496,17 +522,10 @@ function _M:load_false()
 end
 
 function _M:call(nargs, nres)
-  if not nargs then
-    self:emit(OpCodes.callvirt, call_with_array)
-  else
-    self:emit(OpCodes.callvirt, call_with[nargs])
-  end
-  if not nres then
-    self:emit(OpCodes.ldc_i4_0)
-    self:emit(OpCodes.ldelem, luavalue_type)
-  elseif nres == 0 then
+  self:emit(OpCodes.callvirt, call_with(nargs, nres))
+  if nres == 0 then
     self:emit(OpCodes.pop)
-  elseif type(nres) == "number" then
+  elseif type(nres) == "number" and nres > 1 then
     local temp = self:get_temp(luavalue_array_type)
     local size = self:get_temp(int4_type)
     self:store_local(temp)
@@ -538,7 +557,6 @@ end
 
 function _M:new_func(func)
   local temp = self:get_temp()
-  self:emit(OpCodes.ldloca, temp)
   for upval, _ in pairs(func.upvals) do
     if upval.func == self.compiler.current_func then
       self:emit(OpCodes.ldloc, upval)
@@ -552,8 +570,6 @@ function _M:new_func(func)
   self:emit(OpCodes.ldarg_0)
   self:emit(OpCodes.ldfld, env_field)
   self:emit(OpCodes.stfld, env_field)
-  self:emit(OpCodes.stfld, luavalue_ref)
-  self:emit(OpCodes.ldloc, temp)
   self:release_temp(temp)
 end
 
@@ -566,9 +582,6 @@ function _M:prologue()
       self:emit(OpCodes.newarr, luavalue_type)
       self:emit(OpCodes.stloc, var)
       var.temp = self:get_temp()
-    else
---      self:emit(OpCodes.ldloca, var)
---      self:emit(OpCodes.initobj, luavalue_type)
     end
   end
   for _, arg in ipairs(args) do
@@ -587,12 +600,7 @@ function _M:prologue()
 end
 
 function _M:new_table()
-  local retval = self:get_temp()  
-  self:emit(OpCodes.ldloca, retval)
   self:emit(OpCodes.newobj, table_cons)
-  self:emit(OpCodes.stfld, luavalue_ref)
-  self:load_local(retval)
-  self:release_temp(retval)
 end
 
 function _M:constructor()
@@ -601,7 +609,7 @@ function _M:constructor()
   local func = self.compiler.current_func
   local args = {}
   for upval, _ in pairs(func.upvals) do
-    args[#args + 1] = "valuetype [lua]Lua.Value[] " .. upval.name
+    args[#args + 1] = "object[] " .. upval.name
     self:emit(OpCodes.ldarg_0)
     self:emit(OpCodes.ldarg, #args)
     self:emit(OpCodes.stfld, upval)
@@ -613,30 +621,27 @@ end
 function _M:class_constructor()
   local func = self.compiler.current_func
   for val, _ in pairs(func.literals) do
-    self:emit(OpCodes.ldsflda, self.compiler:get_literal(val))
     if type(val) == "boolean" then
       if val then
 	self:emit(OpCodes.ldsfld, true_singleton)
       else
 	self:emit(OpCodes.ldsfld, false_singleton)
       end
-      self:emit(OpCodes.stfld, luavalue_ref)
     elseif type(val) == "number" then
       self:emit(OpCodes.ldc_r8, val)
-      self:emit(OpCodes.stfld, luavalue_val)
+      self:emit(OpCodes.box, double_type)
     else
       self:emit(OpCodes.ldstr, val)
       self:emit(OpCodes.newobj, string_cons);
-      self:emit(OpCodes.stfld, luavalue_ref)
     end
+    self:emit(OpCodes.stsfld, self.compiler:get_literal(val))
   end
-  self:emit(OpCodes.ldsflda, self.compiler:get_literal())
   self:emit(OpCodes.ldsfld, nil_singleton)
-  self:emit(OpCodes.stfld, luavalue_ref)
+  self:emit(OpCodes.stsfld, self.compiler:get_literal())
   self:emit(OpCodes.ret)
 end
 
-function _M:invoke(func_type, nargs, fargs)
+function _M:invoke(func_type, nargs, fargs, ret_type, invoke_name, isvararg)
   if nargs == "array" then
     self:emit(OpCodes.ldarg_1)
     self:emit(OpCodes.ldlen)
@@ -656,6 +661,31 @@ function _M:invoke(func_type, nargs, fargs)
       self:load_nil()
       self:mark_label(next)
     end
+    if isvararg then
+      local has_varargs = self:define_label()
+      local call = self:define_label()
+      self:emit(OpCodes.ldloc_0)
+      self:emit(OpCodes.ldc_i4, fargs)
+      self:emit(OpCodes.sub)
+      self:emit(OpCodes.stloc_0)
+      self:emit(OpCodes.ldloc_0)
+      self:emit(OpCodes.ldc_i4_0)
+      self:emit(OpCodes.bgt, has_varargs)
+      self:emit(OpCodes.ldnull)
+      self:emit(OpCodes.br, call)
+      self:mark_label(has_varargs)
+      self:emit(OpCodes.ldarg_1)
+      self:emit(OpCodes.ldc_i4, fargs)
+      self:emit(OpCodes.ldloc_0)
+      self:emit(OpCodes.newarr, luavalue_type)
+      self:emit(OpCodes.dup)
+      self:emit(OpCodes.starg_1)
+      self:emit(OpCodes.ldc_i4_0)
+      self:emit(OpCodes.ldloc_0)
+      self:emit(OpCodes.call, array_copy)
+      self:emit(OpCodes.ldarg_1)
+      self:mark_label(call)
+    end
   else
     self:emit(OpCodes.ldarg_0)
     for i = 1, fargs do
@@ -665,11 +695,30 @@ function _M:invoke(func_type, nargs, fargs)
 	self:emit(OpCodes.ldarg, i)
       end
     end
+    if isvararg then
+      if nargs > fargs then
+	local nvarargs = nargs - fargs
+	self:emit(OpCodes.ldc_i4, nvarargs)
+	self:emit(OpCodes.newarr, luavalue_type)
+	for i = fargs, nargs - 1 do
+	  self:emit(OpCodes.dup)
+	  self:emit(OpCodes.ldarg, i)
+	  self:emit(OpCodes.ldc_i4, i - fargs)
+	  self:emit(OpCodes.stelem, luavalue_type)
+	end
+      else
+	self:emit(OpCodes.ldnull)
+      end
+    end
   end
   local args = {}
-  for i = 1, fargs do args[#args + 1] = "valuetype [lua]Lua.Value" end
-  local func_invoke = "instance valuetype [lua]Lua.Value[] " .. 
-    func_type .. "::Invoke(" .. table.concat(args, ", ") .. ")"
+  local vararg = ""
+  if isvararg then
+    vararg = ", object[]"
+  end
+  for i = 1, fargs do args[#args + 1] = "object" end
+  local func_invoke = "instance " .. ret_type .. " " .. 
+    func_type .. "::" .. invoke_name .. "(" .. table.concat(args, ", ") .. vararg .. ")"
   self:emit(OpCodes.call, func_invoke)
   self:emit(OpCodes.ret)
 end

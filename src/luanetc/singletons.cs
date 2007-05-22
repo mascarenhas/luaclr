@@ -12,44 +12,76 @@ namespace Lua {
       throw new Exception("not supported");
     }
 
-    public override Value[] Invoke(Value[] args) {
+    public override object[] InvokeM(object[] args) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke() {
+    public override object[] InvokeM() {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1) {
+    public override object[] InvokeM(object a1) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1, Value a2) {
+    public override object[] InvokeM(object a1, object a2) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1, Value a2, Value a3) {
+    public override object[] InvokeM(object a1, object a2, object a3) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4) {
+    public override object[] InvokeM(object a1, object a2, object a3,
+				    object a4) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4, Value a5) {
+    public override object[] InvokeM(object a1, object a2, object a3,
+				    object a4, object a5) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4, Value a5, Value a6) {
+    public override object[] InvokeM(object a1, object a2, object a3,
+				    object a4, object a5, object a6) {
       throw new Exception("not supported");
     }
-    public override Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4, Value a5, Value a6,
-				   Value a7) {
+    public override object[] InvokeM(object a1, object a2, object a3,
+				    object a4, object a5, object a6,
+				    object a7) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object[] args) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS() {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1, object a2) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1, object a2, object a3) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1, object a2, object a3,
+				   object a4) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1, object a2, object a3,
+				   object a4, object a5) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1, object a2, object a3,
+				  object a4, object a5, object a6) {
+      throw new Exception("not supported");
+    }
+    public override object InvokeS(object a1, object a2, object a3,
+				  object a4, object a5, object a6,
+				  object a7) {
       throw new Exception("not supported");
     }
 
-    public override Value Length() {
+    public override object Length() {
       throw new Exception("not supported");
     }
 
-    public override Value this[Value key] { 
+    public override object this[object key] { 
       get {
       throw new Exception("not supported");
       }

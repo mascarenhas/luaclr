@@ -2,61 +2,71 @@ using System;
 
 namespace Lua {
   public abstract class Reference {
-    public static Value Add(Value v1, Value v2) { return new Value(); }
-    public static Value Add(double v1, Value v2) { return new Value(); }
-    public static Value Subtract(Value v1, Value v2) { return new Value(); }
-    public static Value Subtract(double v1, Value v2) { return new Value(); }
-    public static Value Multiply(Value v1, Value v2) { return new Value(); }
-    public static Value Multiply(double v1, Value v2) { return new Value(); }
-    public static Value Divide(Value v1, Value v2) { return new Value(); }
-    public static Value Divide(double v1, Value v2) { return new Value(); }
-    public static Value Mod(Value v1, Value v2) { return new Value(); }
-    public static Value Mod(double v1, Value v2) { return new Value(); }
-    public static Value Pow(Value v1, Value v2) { return new Value(); }
-    public static Value Pow(double v1, Value v2) { return new Value(); }
-    public static Value Negate(Value v) { return new Value(); }
 
-    public static bool Equal(Value v1, Value v2) {
-      return v1.O.Equals(v2.O);
-    }
-    public static bool NotEqual(Value v1, Value v2) {
-      return !v1.O.Equals(v2.O);
-    }
-    public static bool LessThan(Value v1, Value v2) {
-      return v1.O.LessThan(v2.O);
-    }
-    public static bool LessThanOrEqual(Value v1, Value v2) {
-      return v1.O.LessThanOrEqual(v2.O);
-    }
-    public static bool GreaterThan(Value v1, Value v2) {
-      return !v1.O.LessThanOrEqual(v2.O);
-    }
-    public static bool GreaterThanorEqual(Value v1, Value v2) {
-      return !v1.O.LessThan(v2.O);
-    }
+    public object Add(object o) { throw new Exception("not implemented"); }
+    public object Subtract(object o) { throw new Exception("not implemented"); }
+    public object Multiply(object o) { throw new Exception("not implemented"); }
+    public object Divide(object o) { throw new Exception("not implemented"); }
+    public object Mod(object o) { throw new Exception("not implemented"); }
+    public object Pow(object o) { throw new Exception("not implemented"); }
+
+    public object Add(double o) { throw new Exception("not implemented"); }
+    public object Subtract(double o) { throw new Exception("not implemented"); }
+    public object Multiply(double o) { throw new Exception("not implemented"); }
+    public object Divide(double o) { throw new Exception("not implemented"); }
+    public object Mod(double o) { throw new Exception("not implemented"); }
+    public object Pow(double o) { throw new Exception("not implemented"); }
 
     public abstract bool Equals(Reference o);
     public abstract bool LessThan(Reference o);
     public abstract bool LessThanOrEqual(Reference o);
 
-    public abstract Value[] Invoke(Value[] args);
-    public abstract Value[] Invoke();
-    public abstract Value[] Invoke(Value a1);
-    public abstract Value[] Invoke(Value a1, Value a2);
-    public abstract Value[] Invoke(Value a1, Value a2, Value a3);
-    public abstract Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4);
-    public abstract Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4, Value a5);
-    public abstract Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4, Value a5, Value a6);
-    public abstract Value[] Invoke(Value a1, Value a2, Value a3,
-				   Value a4, Value a5, Value a6,
-				   Value a7);
+    public bool NotEqual(Reference o) {
+      return !this.Equals(o);
+    }
+    public bool GreaterThan(Reference o) {
+      return !this.LessThanOrEqual(o);
+    }
+    public bool GreaterThanOrEqual(Reference o) {
+      return !this.LessThan(o);
+    }
 
-    public abstract Value Length();
+    public virtual object[] Invoke(object[] args) {
+      return ((Reference)this).InvokeM(args);
+    }
 
-    public abstract Value this[Value key] { get; set; }
+    public abstract object[] InvokeM(object[] args);
+    public abstract object[] InvokeM();
+    public abstract object[] InvokeM(object a1);
+    public abstract object[] InvokeM(object a1, object a2);
+    public abstract object[] InvokeM(object a1, object a2, object a3);
+    public abstract object[] InvokeM(object a1, object a2, object a3,
+				   object a4);
+    public abstract object[] InvokeM(object a1, object a2, object a3,
+				    object a4, object a5);
+    public abstract object[] InvokeM(object a1, object a2, object a3,
+				    object a4, object a5, object a6);
+    public abstract object[] InvokeM(object a1, object a2, object a3,
+				    object a4, object a5, object a6,
+				    object a7);
+    public abstract object InvokeS(object[] args);
+    public abstract object InvokeS();
+    public abstract object InvokeS(object a1);
+    public abstract object InvokeS(object a1, object a2);
+    public abstract object InvokeS(object a1, object a2, object a3);
+    public abstract object InvokeS(object a1, object a2, object a3,
+				  object a4);
+    public abstract object InvokeS(object a1, object a2, object a3,
+				  object a4, object a5);
+    public abstract object InvokeS(object a1, object a2, object a3,
+				  object a4, object a5, object a6);
+    public abstract object InvokeS(object a1, object a2, object a3,
+				  object a4, object a5, object a6,
+				  object a7);
+
+    public abstract object Length();
+
+    public abstract object this[object key] { get; set; }
 
     public abstract Table Metatable { get; set; }
   }

@@ -16,11 +16,11 @@ namespace Lua {
       throw new Exception("not supported");
     }
 
-    public override Value Length() {
+    public override object Length() {
       throw new Exception("not supported");
     }
 
-    public override Value this[Value key] { 
+    public override object this[object key] { 
       get {
       throw new Exception("not supported");
       }

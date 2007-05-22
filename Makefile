@@ -4,6 +4,13 @@ LUA_LIB_DIR= /usr/local/lib/lua/5.1
 LDFLAGS= -bundle -undefined dynamic_lookup
 CFLAGS= -O2 -Wall -I$(LUA_INCLUDE_DIR)
 
+CS_FILES= src\luanetc\closure.cs  src\luanetc\clrfunction.cs  src\luanetc\reference.cs  src\luanetc\singletons.cs  src\luanetc\stdlib.cs  src\luanetc\string.cs  src\luanetc\table.cs  src\luanetc\value.cs
+
+lua.dll: $(CS_FILES)
+	csc /t:library /out:lua.dll $(CS_FILES)
+
+all: lua.dll
+
 install:
 	cp src/cheese.lua $(LUA_MODULE_DIR)
 	mkdir -p $(LUA_MODULE_DIR)/stream

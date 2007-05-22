@@ -8,14 +8,14 @@ namespace Lua
     public static readonly Node DummyNode = new Node();
     public static readonly Node NilNode = new Node();
 
-    public Value key;
-    public Value val;
+    public object key;
+    public object val;
     public Node next;
 
     public Node() 
     {
-      key.O = Nil.Instance;
-      val.O = Nil.Instance;
+      key = Nil.Instance;
+      val = Nil.Instance;
       next = null;
     }
 
@@ -56,12 +56,12 @@ namespace Lua
 
     Table _meta;
 
-    int ArrayIndex(Value key) 
+    int ArrayIndex(object key) 
     {
-      if(key.O == null) 
+      if(key is double) 
 	{
-	  int k = (int)key.N;
-	  if(((double)k == key.N) && (k >= 1) && (k < Int32.MaxValue))
+	  int k = (int)((double)key);
+	  if(((double)k == (double)key) && (k >= 1) && (k < Int32.MaxValue))
 	    return k;
 	}
       return -1;
@@ -105,7 +105,7 @@ namespace Lua
 	    }
 	  for (; i < ttlg; i++) 
 	    {
-	      if (this.array[i].val.O != Nil.Instance) 
+	      if (this.array[i].val != Nil.Instance) 
 		{
 		  nums[lg]++;
 		  totaluse++;
@@ -119,7 +119,7 @@ namespace Lua
       while (i-- > 0) 
 	{
 	  Node n = this.node[i];
-	  if (n.val.O != Nil.Instance) 
+	  if (n.val != Nil.Instance) 
 	    {
 	      int k = ArrayIndex(n.key);
 	      if (k >= 0) 
@@ -197,8 +197,8 @@ namespace Lua
 	  temp[0].val = this.node[0].val;
 	  temp[0].next = this.node[0].next;
 	  nold = temp;
-	  Node.DummyNode.key.O = Nil.Instance;  /* restate invariant */
-	  Node.DummyNode.val.O = Nil.Instance;
+	  Node.DummyNode.key = Nil.Instance;  /* restate invariant */
+	  Node.DummyNode.val = Nil.Instance;
 	  Node.DummyNode.next = null;
 	}
       if (nasize > oldasize)  /* array part must grow? */
@@ -212,7 +212,7 @@ namespace Lua
 	  /* re-insert elements from vanishing slice */
 	  for (i = nasize; i < oldasize; i++) 
 	    {
-	      if (this.array[i].val.O != Nil.Instance)
+	      if (this.array[i].val != Nil.Instance)
 		SetNum(i+1, this.array[i].val);
 	    }
 	  /* shrink array */
@@ -225,7 +225,7 @@ namespace Lua
       for (i = (1 << oldhsize) - 1; i >= 0; i--) 
 	{
 	  Node old = nold[i];
-	  if (old.val.O != Nil.Instance)
+	  if (old.val != Nil.Instance)
 	    Set(old.key, old.val);
 	}
     }
@@ -246,10 +246,10 @@ namespace Lua
 
     public Table() : this(0,0) {}
 
-    Node NewKey(Value key) 
+    Node NewKey(object key) 
     {
       Node mp = MainPosition(key);
-      if (mp.val.O != Nil.Instance) 
+      if (mp.val != Nil.Instance) 
 	{  /* main position is not free? */
 	  Node othern = MainPosition(mp.key);  /* `mp' of colliding node */
 	  Node n = this.node[this.firstFree];  /* get a free place */
@@ -260,7 +260,7 @@ namespace Lua
 	      othern.next = n;  /* redo the chain with `n' in place of `mp' */
 	      n.Copy(mp); /* copy colliding node into free pos. (mp->next also goes) */
 	      mp.next = null;  /* now `mp' is free */
-	      mp.val.O = Nil.Instance;
+	      mp.val = Nil.Instance;
 	    }
 	  else 
 	    {  /* colliding node is in its own main position */
@@ -273,22 +273,22 @@ namespace Lua
       mp.key = key;  /* write barrier */
       for (;;) 
 	{  /* correct `firstfree' */
-	  if (this.node[this.firstFree].key.O == Nil.Instance)
+	  if (this.node[this.firstFree].key == Nil.Instance)
 	    return mp;  /* OK; table still has a free place */
 	  else if (this.firstFree == 0) break;  /* cannot decrement from here */
 	  else this.firstFree = this.firstFree-1;
 	}
       /* no more free places; must create one */
-      mp.val.O = False.Instance; /* avoid new key being removed */
+      mp.val = False.Instance; /* avoid new key being removed */
       Rehash();  /* grow table */
       Node newn = Get(key);  /* get new position */
-      newn.val.O = Nil.Instance;
+      newn.val = Nil.Instance;
       return newn;
     }
 
-    Node GetAny(Value key) 
+    Node GetAny(object key) 
     {
-      if (key.O == Nil.Instance) return Node.NilNode;
+      if (key == Nil.Instance) return Node.NilNode;
       else 
 	{
 	  Node n = MainPosition(key);
@@ -313,7 +313,7 @@ namespace Lua
 	  Node n = HashNum(nk);
 	  do 
 	    {  /* check whether `key' is somewhere in the chain */
-	      if (n.key.O == null && n.key.N == nk)
+	      if (n.key is double && (double)(n.key) == nk)
 		return n;  /* that's it */
 	      else n = n.next;
 	    } while (n!=null);
@@ -326,33 +326,33 @@ namespace Lua
       Node n = HashRef(key);
       do 
 	{  /* check whether `key' is somewhere in the chain */
-	  if (n.key.O != null && key.Equals(n.key.O))
+	  if (n.key is Reference && key.Equals((Reference)n.key))
 	    return n;  /* that's it */
 	  else n = n.next;
 	} while (n != null);
       return Node.NilNode;
     }
 
-    Node Get(Value key) 
+    Node Get(object key) 
     {
-      if(key.O == null) 
+      if(key is double) 
 	{
-	  int k = (int)key.N;
-	  if (((double)k) == key.N)  /* is an integer index? */
+	  int k = (int)((double)key);
+	  if (((double)k) == (double)key)  /* is an integer index? */
 	    return GetNum(k);  /* use specialized version */
 	  else
 	    return GetAny(key);
 	} 
       else 
 	{
-	  if(key.O is String) 
-	    return GetStr((String)(key.O));
+	  if(key is String) 
+	    return GetStr((String)(key));
 	  else
 	    return GetAny(key);
 	}
     }
 
-    void Set(Value key, Value val) 
+    void Set(object key, object val) 
     {
       Node p = Get(key);
       if(p != Node.NilNode) 
@@ -361,16 +361,16 @@ namespace Lua
 	} 
       else 
 	{
-	  if(key.O == null && Double.IsNaN(key.N))
+	  if(key is double && Double.IsNaN((double)key))
 	    throw new Exception("table index is NaN");
-	  if(key.O != null && key.O == Nil.Instance)
+	  if(key == Nil.Instance)
 	    throw new Exception("table index is nil");
 	  p = NewKey(key);
 	  p.val = val;
 	}
     }
 
-    void SetNum(int key, Value val) 
+    void SetNum(int key, object val) 
     {
       Node p = GetNum(key);
       if(p != Node.NilNode) 
@@ -379,20 +379,17 @@ namespace Lua
 	} 
       else 
 	{
-	  Value v;
-	  v.O = null;
-	  v.N = (double)key;
-	  p = NewKey(v);
+	  p = NewKey((double)key);
 	  p.val = val;
 	}
     }
 
-    Node MainPosition(Value key) 
+    Node MainPosition(object key) 
     {
-      if(key.O==null)
-	return HashNum(key.N);
+      if(key is double)
+	return HashNum((double)key);
       else 
-	return HashRef(key.O);
+	return HashRef((Reference)key);
     }
 
     Node HashNum(double n) 
@@ -418,7 +415,7 @@ namespace Lua
 	}
     }
 	
-    public override Value this[Value index] 
+    public override object this[object index] 
     {
       get 
 	{
@@ -430,7 +427,7 @@ namespace Lua
 	}
     }
 
-    public Value this[String index] 
+    public object this[String index] 
     {
       get 
 	{
@@ -450,49 +447,84 @@ namespace Lua
       throw new Exception("operation <= not supported on tables");
     }
 
-    public override Value Length() {
-      Value v;
-      v.O = null;
-      v.N = this.sizeArray;
-      return v;
+    public override object Length() {
+      return (double)this.sizeArray;
     }
 
-    public override Value[] Invoke(Value[] args) {
+    public override object[] InvokeM(object[] args) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke() {
+    public override object[] InvokeM() {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1) {
+    public override object[] InvokeM(object arg1) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1, Value arg2) {
+    public override object[] InvokeM(object arg1, object arg2) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1, Value arg2, Value arg3) {
+    public override object[] InvokeM(object arg1, object arg2, object arg3) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1, Value arg2, Value arg3, Value arg4) {
+    public override object[] InvokeM(object arg1, object arg2, object arg3, object arg4) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1, Value arg2, Value arg3, Value arg4,
-				   Value arg5) {
+    public override object[] InvokeM(object arg1, object arg2, object arg3, object arg4,
+				    object arg5) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1, Value arg2, Value arg3, Value arg4,
-				   Value arg5, Value arg6) {
+    public override object[] InvokeM(object arg1, object arg2, object arg3, object arg4,
+				    object arg5, object arg6) {
       throw new Exception("operation call not supported on tables");
     }
 
-    public override Value[] Invoke(Value arg1, Value arg2, Value arg3, Value arg4,
-				   Value arg5, Value arg6, Value arg7) {
+    public override object[] InvokeM(object arg1, object arg2, object arg3, object arg4,
+				    object arg5, object arg6, object arg7) {
+      throw new Exception("operation call not supported on tables");
+    }
+    public override object InvokeS(object[] args) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS() {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1, object arg2) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1, object arg2, object arg3) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1, object arg2, object arg3, object arg4) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1, object arg2, object arg3, object arg4,
+				  object arg5) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1, object arg2, object arg3, object arg4,
+				  object arg5, object arg6) {
+      throw new Exception("operation call not supported on tables");
+    }
+
+    public override object InvokeS(object arg1, object arg2, object arg3, object arg4,
+				  object arg5, object arg6, object arg7) {
       throw new Exception("operation call not supported on tables");
     }
   }

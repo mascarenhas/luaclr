@@ -5,25 +5,23 @@ using foo;
 public class runfib {
   public static void Main(string[] args) {
     Table env = new Table();
-    Value k, v;
-    k.N = 0;
-    k.O = new Lua.String("print");
-    v.N = 0;
-    v.O = new Print();
+    object k, v;
+    k = new Lua.String("print");
+    v = new Print();
     env[k] = v;
     Lua.String s = new Lua.String("tonumber");
-    k.O = s;
-    v.O = new ToNumber();
+    k = s;
+    v = new ToNumber();
     env[k] = v;
-    k.O = new Lua.String("os");
+    k = new Lua.String("os");
     Table os = new Table();
-    v.O = os;
+    v = os;
     env[k] = v;
-    k.O = new Lua.String("clock");
-    v.O = new Clock();
+    k = new Lua.String("clock");
+    v = new Clock();
     os[k] = v;
     function1 f = new function1();
     f.Env = env;
-    f.Invoke();
+    f.InvokeS();
   }
 }

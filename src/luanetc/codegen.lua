@@ -13,7 +13,7 @@ end
 function visitor.chunk(compiler, chunk)
   compiler:start_function(chunk)
   compiler:compile(chunk.block)
-  compiler.ilgen:emit(OpCodes.ldnull)
+  compiler.ilgen:load_nil()
   compiler.ilgen:emit(OpCodes.ret)
   compiler:end_function()
 end
@@ -101,7 +101,7 @@ function visitor.gfor(compiler, gfor)
   local test = compile.ilgen:define_label()
   compile.ilgen:mark_label(test)
   compiler.ilgen:load_local(temp_iter)
-  compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
+  compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
   compiler.ilgen:load_local(temp_state)
   compiler.ilgen:load_local(temp_control)
   compiler.ilgen:call(2, #gfor.vars)
@@ -119,12 +119,14 @@ function visitor.gfor(compiler, gfor)
 end
 
 visitor["function"] = function (compiler, nfunction)
-  compiler:start_function(nfunction)
-  compiler:compile(nfunction.block)
-  compiler.ilgen:emit(OpCodes.ldnull)
-  compiler.ilgen:emit(OpCodes.ret)
-  local func = compiler:end_function()
-  compiler.ilgen:new_func(func)
+  if not nfunction.compiled then
+    compiler:start_function(nfunction)
+    compiler:compile(nfunction.block)
+    compiler.ilgen:load_nil()
+    compiler.ilgen:emit(OpCodes.ret)
+    compiler:end_function()
+  end
+  compiler.ilgen:new_func(nfunction)
 end
 
 visitor["local"] = function (compiler, nlocal)
@@ -148,7 +150,21 @@ visitor["break"] = function (compiler, nbreak)
 end
 
 visitor["return"] = function (compiler, nreturn)
-  compiler.ilgen:argslist(nreturn.exps, true)
+  if compiler.current_func.ret_type == "multi" then
+    compiler.ilgen:argslist(nreturn.exps, true)
+  elseif compiler.current_func.ret_type == "single" then
+    if #nreturn.exps > 0 then
+      compiler:compile(nreturn.exps[1])
+    else
+      compiler.ilgen:load_nil()
+    end
+    for i = 2, #nreturn.exps do
+      compiler:compile(nreturn.exps[i])
+      compiler.ilgen:emit(OpCodes.pop)
+    end
+  else
+    error("return type not provided")
+  end
   compiler.ilgen:emit(OpCodes.ret)
 end
 
@@ -163,7 +179,7 @@ function visitor.var(compiler, var)
     local val = compiler.ilgen:get_temp()
     compiler.ilgen:store_local(val)
     compiler:compile(var.ref.table)
-    compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
+    compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
     compiler:compile(var.ref.index)
     compiler.ilgen:load_local(val)
     compiler.ilgen:settable()
@@ -175,7 +191,7 @@ end
 
 function visitor.index(compiler, pexp)
   compiler:compile(pexp.table)
-  compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
+  compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
   compiler:compile(pexp.index)
   compiler.ilgen:gettable()
 end
@@ -243,7 +259,7 @@ end
 function visitor.call(compiler, call, nres)
   local self_arg = compiler.ilgen:get_temp(compiler.ilgen.luaref_type)
   compiler:compile(call.func)
-  compiler.ilgen:emit(OpCodes.ldfld, compiler.ilgen.luavalue_ref)
+  compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
   if call.method then
     compiler.ilgen:emit(OpCodes.dup)
     compiler.ilgen:store_local(self_arg)
