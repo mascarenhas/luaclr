@@ -9,6 +9,14 @@ local function fib(n)
 	end
 end
 
+local function fib_iter(n)
+      local a, b = 1, 1
+      for i = 3, n do
+        b, a = b + a, b
+      end
+      return b
+end
+
 -- a general-purpose value cache
 function cache(f)
 	local c={}
@@ -23,20 +31,24 @@ function cache(f)
 end
 
 -- run and time it
-function test(s,f)
+function test(s,f,n_iter)
 	local c=os.clock()
 	local v
 	local n = n
-	for i = 1, 500 do
+	local x
+	for i = 1, n_iter do
 	  v=f(n)
+	  x = i
         end
 	local t=os.clock()
-	print(s,n,v,t-c)
+	print(s,n,x,v,t-c)
 end
 
 n=24
 n=tonumber(n)
-print("","n","value","time")
-test("plain",fib)
+print("","n","iter","value","time")
+test("plain",fib,100)
 fib=cache(fib)
-test("cached",fib)
+test("cached",fib,1000000)
+fib=fib_iter
+test("iter",fib,1000000)

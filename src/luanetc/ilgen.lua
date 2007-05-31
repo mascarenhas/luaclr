@@ -193,7 +193,7 @@ function _M:neg(exp)
   self.compiler:compile(exp)
   self:emit(OpCodes.dup)
   self:emit(OpCodes.isinst, double_type)
-  self:emit(OpCodes.brnull, slow_track)
+  self:emit(OpCodes.brfalse, slow_track)
   self:emit(OpCodes.unbox_any, double_type)
   self:emit(OpCodes.neg)
   self:emit(OpCodes.box, double_type)
@@ -216,7 +216,7 @@ function _M:arith(op, exp1, exp2)
     self.compiler:compile(exp1)
     self:emit(OpCodes.dup)
     self:emit(OpCodes.isinst, double_type)
-    self:emit(OpCodes.brnull, slow_track)
+    self:emit(OpCodes.brfalse, slow_track)
     self:emit(OpCodes.unbox_any, double_type)
   end
   if type(exp2) == "number" then
@@ -227,7 +227,7 @@ function _M:arith(op, exp1, exp2)
     self.compiler:compile(exp2)
     self:emit(OpCodes.dup)
     self:emit(OpCodes.isinst, double_type)
-    self:emit(OpCodes.brnull, very_slow_track)
+    self:emit(OpCodes.brfalse, very_slow_track)
     self:emit(OpCodes.unbox_any, double_type)
   end
   self:emit(op)
@@ -270,7 +270,7 @@ function _M:rel(op, exp1, exp2, label)
     self.compiler:compile(exp1)
     self:emit(OpCodes.dup)
     self:emit(OpCodes.isinst, double_type)
-    self:emit(OpCodes.brnull, slow_track)
+    self:emit(OpCodes.brfalse, slow_track)
     self:emit(OpCodes.unbox_any, double_type)
   end
   if type(exp2) == "number" then
@@ -281,7 +281,7 @@ function _M:rel(op, exp1, exp2, label)
     self.compiler:compile(exp2)
     self:emit(OpCodes.dup)
     self:emit(OpCodes.isinst, double_type)
-    self:emit(OpCodes.brnull, type_mismatch_number)
+    self:emit(OpCodes.brfalse, type_mismatch_number)
     self:emit(OpCodes.unbox_any, double_type)
   end
   if label then
@@ -303,7 +303,7 @@ function _M:rel(op, exp1, exp2, label)
 	self.compiler:compile(exp2)
 	self:emit(OpCodes.dup)
 	self:emit(OpCodes.isinst, luaref_type)
-        self:emit(OpCodes.brnull, type_mismatch_ref)	
+        self:emit(OpCodes.brfalse, type_mismatch_ref)	
         self:emit(OpCodes.castclass, luaref_type)
         self:emit(OpCodes.callvirt, rel_method[op])
         if label then
@@ -465,7 +465,8 @@ function _M:explist(list, adjust_n)
       for i = (i + 1), adjust_n do
 	self:load_nil()
       end
-    end    
+    end
+    i = i + 1    
   end
   while i <= #list do
     self.compiler:compile(list[i])
@@ -505,19 +506,20 @@ function _M:load_string(name)
 end
 
 function _M:load_number(n)
-  self:emit(OpCodes.ldsfld, self.compiler:get_literal(n))
+  self:emit(OpCodes.ldc_r8, n)
+  self:emit(OpCodes.box, double_type)
 end
 
 function _M:load_nil()
-  self:emit(OpCodes.ldsfld, self.compiler:get_literal())
+  self:emit(OpCodes.ldsfld, nil_singleton)
 end
 
 function _M:load_true()
-  self:emit(OpCodes.ldsfld, self.compiler:get_literal(true))
+  self:emit(OpCodes.ldsfld, true_singleton)
 end
 
 function _M:load_false()
-  self:emit(OpCodes.ldsfld, self.compiler:get_literal(false))
+  self:emit(OpCodes.ldsfld, false_singleton)
 end
 
 function _M:call(nargs, nres)
@@ -551,7 +553,17 @@ function _M:call(nargs, nres)
 end
 
 function _M:emit(opcode, ...)
-  self.ops[#self.ops + 1] = { opcode, ... }
+  if opcode == OpCodes.isinst then
+    self:emit(OpCodes.call, "instance class [mscorlib]System.Type object::GetType()")
+    self:emit(OpCodes.ldtoken, select(1, ...))
+    self:emit(OpCodes.call, "class [mscorlib]System.Type [mscorlib]System.Type::" .. 
+      "GetTypeFromHandle(valuetype [mscorlib]System.RuntimeTypeHandle)")
+    self:emit(OpCodes.ceq)
+  elseif opcode == OpCodes.castclass then
+    self:emit(OpCodes.unbox_any, ...)
+  else
+    self.ops[#self.ops + 1] = { opcode, ... }
+  end
 end
 
 function _M:new_func(func)
