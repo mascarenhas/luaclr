@@ -1,61 +1,45 @@
-README for Cheese 0.1 Alpha
+README for LuaCLR 0.1 Alpha
 
-1. What is Cheese
+1. What is LuaCLR
 
-Cheese is a parser generator for Lua that uses Parsing Expression Grammars
-(PEGs) [1] as its description formalism and Lua itself as a description language
-for the parsers. It also includes a grammar for a parser that understands
-the complete syntax of Lua 5.1 and generates ASTs. It also includes a dumper
-that generates Lua code from these ASTs.
+LuaCLR is a compiler for the Lua 5.1 language that targets the Microsoft
+Common Language Runtime (CLR). Right now it also works on Mono, but
+this is not guaranteed in the future. Also, the compiler is not self-hosting,
+which means it depends on the Lua interpreter, but as it's implemented in
+a mix of Lua and C# it will be completely self-hosted when complete.
 
-The current version is a prototype that generates parsers written in Lua, so
-the generated parsers are very slow. The parser has been tested on several
-Lua source files, but there may be hidden bugs.
+The compiler aims for completeness (implementing as much of Lua 5.1, including
+the standard library, as possible) and speed (being faster than the Lua VM, and
+approaching LuaJIT). Also it should provide transparent interfacing between
+Lua and the rest of the CLR (at least as good as what LuaInterface provides).
 
-The purpose of Cheese is  to investigate a more powerful and expressive
-alternative to Lua patterns, without sacrificing readability and to provide
-a dynamically extensible parser to the Lua language.
+The current version is incomplete, and lacks most of the Lua standard library,
+as well as integration with the rest of the CLR. The design is also not fixed, and
+will probably change in the near future.
 
-Plans for Cheese include a much faster implementation of the parsers,
-a back-end for generating Lua opcodes from the ASTs, and a better
-interface for extending the parser (currently it can only be extended by
-direct manipulation of the grammar).
-
-Cheese is free software. The contents of this distribution are Copyright
+LuaCLR is free software. The contents of this distribution are Copyright
 2006 Fabio Mascarenhas, and released through the MIT license.
 
 2. Installation
 
-In Unix systems, just type "make install" as root. If your Lua libraries are
-not located in /usr/local/share/lua/5.1, please edit the provided Makefile
-first.
+There is a Makefile for GNU make, so I recommend installing a suite
+of GNU tools for Windows. Edit the Makefile to point to where
+you store your Lua libraries, and do "make" and "make install".
 
-Windows users should copy the files by hand. See the Makefile for where it
-file should go.
+If you don't have GNU make, and don't want to fiddle with UNIX utilities
+see the Makefile for build/installation instructions (it's really easy).
 
 3. Testing
 
-To run a minimal test suite for the Lua parser (it stresses all the Cheese rules,
-and the two implementations of strems provided) just type "make test".
-
-4. Removal
-
-In Unix systems, just type "make uninstall" as root. Windows users should
-delete the files by hand.
+To run a minimal test suite for the parser part type "make test". I will work
+on integrating the Lua test suite.
 
 5. Documentation
 
 Please check the doc directory for extra documentation.
 
-6. Changelog
-
-This is the first public release.
-
 7. Credits
 
-Cheese is designed by Fabio Mascarenhas. You can contact the author
+LuaCLR is designed by Fabio Mascarenhas. You can contact the author
 at mascarenhas@acm.org.
 
-8. References
-
-[1] http://pdos.csail.mit.edu/~baford/packrat/
