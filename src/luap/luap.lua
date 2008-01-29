@@ -519,7 +519,7 @@ FuncDef = (FUNCTION .. FuncName .. FuncBody) %
 
 LocalFuncDef = (LOCAL .. FUNCTION .. NAME .. FuncBody) %
                            function (tree)
-			     return { { tag = "local", names = { tree[3] }, exps = {} },
+			     return { { tag = "local", names = { tree[3] } },
 			       	      { tag = "assign", vars = { { tag = "var", ref = tree[3] } },
 					exps = { { tag = "function", parlist =
 				                   tree[4].parlist, block = tree[4].block } } } }
@@ -527,7 +527,7 @@ LocalFuncDef = (LOCAL .. FUNCTION .. NAME .. FuncBody) %
 
 LocalDef = (LOCAL .. NameList .. opt(ASSIGN .. ExpList1)) %
                        function (tree)
-                         local locdef_node = { tag = "local", names = tree[2], exps = {} }
+                         local locdef_node = { tag = "local", names = tree[2] }
                          if #tree[3] > 0 then locdef_node.exps = tree[3][2] end
                          return locdef_node
                        end

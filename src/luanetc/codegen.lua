@@ -148,6 +148,11 @@ visitor["local"] = function (compiler, nlocal)
     for i = #nlocal.names, 1, -1 do
       compiler.ilgen:store_local(nlocal.names[i].ref)
     end
+  else
+    for i = #nlocal.names, 1, -1 do
+      compiler.ilgen:load_nil()
+      compiler.ilgen:store_local(nlocal.names[i].ref)
+    end
   end
 end
 
@@ -163,7 +168,13 @@ visitor["break"] = function (compiler, nbreak)
 end
 
 visitor["return"] = function (compiler, nreturn)
-  if compiler.current_func.ret_type == "multi" then
+  if #nreturn.exps == 1 and nreturn.exps[1].tag == "call" then -- tail call
+    if compiler.current_func.ret_type == "multi" then
+      compiler:compile(nreturn.exps[1], "array", true)
+    else
+      compiler:compile(nreturn.exps[1], 1, true)
+    end
+  elseif compiler.current_func.ret_type == "multi" then
     compiler.ilgen:argslist(nreturn.exps, true)
   elseif compiler.current_func.ret_type == "single" then
     if #nreturn.exps > 0 then
@@ -219,17 +230,40 @@ end
 
 function visitor.constructor(compiler, cons)
   compiler.ilgen:new_table()
+  local i, last = 1, #cons.fields
+  for i_field, field in ipairs(cons.fields) do
+    if field.tag == "namefield" or field.tag == "indexfield" then
+      compiler:compile(field)
+    else
+      if i_field == last then
+	-- TODO: last call!
+	compiler.ilgen:emit(OpCodes.dup)
+	compiler.ilgen:load_number(i)
+	compiler:compile(field, 1) -- replace with array 
+	compiler.ilgen:settable()
+      else
+	compiler.ilgen:emit(OpCodes.dup)
+	compiler.ilgen:load_number(i)
+	compiler:compile(field, 1)
+	compiler.ilgen:settable()
+      end
+      i = i + 1
+    end
+  end
 end
 
 function visitor.namefield(compiler, namefield)
--- TODO
-  tie_refs(st, namefield.exp)
+  compiler.ilgen:emit(OpCodes.dup)
+  compiler.ilgen:load_string(namefield.name)
+  compiler:compile(namefield.exp, 1)
+  compiler.ilgen:settable()
 end
 
 function visitor.indexfield(compiler, indexfield)
--- TODO
-  tie_refs(st, indexfield.name)
-  tie_refs(st, indexfield.exp)
+  compiler.ilgen:emit(OpCodes.dup)
+  compiler:compile(indexfield.name, 1)
+  compiler:compile(indexfield.exp, 1)
+  compiler.ilgen:settable()
 end
 
 function visitor.name(compiler, name)
@@ -242,7 +276,7 @@ end
 
 function visitor.binop(compiler, binop)
   local arith_ops = { ["+"] = "add", ["-"] = "sub", ["/"] = "div",
-    ["*"] = "mul", ["%"] = "mod", ["^"] = "exp" }
+    ["*"] = "mul", ["%"] = "rem", ["^"] = "exp" }
   local rel_ops = { ["=="] = "beq", ["~="] = "bne", ["<"] = "blt",
     [">"] = "bgt", ["<="] = "ble", [">="] = "bge" }
   if arith_ops[binop.op] then
@@ -252,8 +286,12 @@ function visitor.binop(compiler, binop)
   elseif binop.op == "and" or binop.op == "or" then
     compiler.ilgen["logical_" .. binop.op](compiler.ilgen, 
 					   binop.left, binop.right)
+  elseif binop.op == ".." then
+    compiler:compile(binop.left, 1)
+    compiler:compile(binop.right, 1)
+    compiler.ilgen:concat()
   else
-    error("invalid binary operator")
+    error("invalid binary operator: '" .. binop.op .. "'")
   end
 end
 
@@ -269,7 +307,7 @@ function visitor.unop(compiler, unop)
   end
 end
 
-function visitor.call(compiler, call, nres)
+function visitor.call(compiler, call, nres, is_tail)
   local self_arg = compiler.ilgen:get_temp(compiler.ilgen.luaref_type)
   compiler:compile(call.func)
   compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
@@ -281,7 +319,7 @@ function visitor.call(compiler, call, nres)
     table.insert(call.args, 1, { tag = "name", ref = self_arg })
   end
   local nargs = compiler.ilgen:argslist(call.args)
-  compiler.ilgen:call(nargs, nres)
+  compiler.ilgen:call(nargs, nres, is_tail)
   if call.method then
     table.remove(call.args, 1)
   end
@@ -289,17 +327,17 @@ function visitor.call(compiler, call, nres)
 end
 
 function compile(compiler, node, ...)
-  if node and node.tag then 
+  if node and node.tag and visitor[node.tag] then 
     visitor[node.tag](compiler, node, ...)
   else
-    if type(node) == "table" then
-      visitor.block(compiler, node)
-    elseif type(node) == "nil" or node == "nil" then
+    if type(node) == "nil" or node == "nil" or (node.tag and node.tag == "nil") then
       compiler.ilgen:load_nil()
-    elseif node == "true" then
+    elseif node == "true" or (node.tag and node.tag == "true") then
       compiler.ilgen:load_true()
-    elseif node == "false" then
+    elseif node == "false" or (node.tag and node.tag == "false") then
       compiler.ilgen:load_false()
+    elseif type(node) == "table" then
+      visitor.block(compiler, node)
     else
       error("node " .. node .. "not supported by compiler yet")
     end

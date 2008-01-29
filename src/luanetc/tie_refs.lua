@@ -82,8 +82,8 @@ visitor["function"] = function (st, nfunction)
 end
 
 visitor["local"] = function (st, nlocal)
-  for _, exp in ipairs(nlocal.exps) do
-      tie_refs(st, exp)
+  for _, exp in ipairs(nlocal.exps or {}) do
+    tie_refs(st, exp)
   end
   for _, var in ipairs(nlocal.names) do
     var.ref = st:add(var.val)
@@ -91,7 +91,7 @@ visitor["local"] = function (st, nlocal)
 end
 
 function visitor.assign(st, assign)
-  for _, exp in ipairs(assign.exps) do
+  for _, exp in ipairs(assign.exps or {}) do
     tie_refs(st, exp)
   end
   for _, var in ipairs(assign.vars) do

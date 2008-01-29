@@ -1,6 +1,6 @@
 using Lua;
 using System;
-using foo;
+using fib;
 
 public class runfib {
   public static void Main(string[] args) {

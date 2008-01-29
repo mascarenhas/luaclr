@@ -4,7 +4,7 @@ local setmetatable = setmetatable
 module(...)
 
 local function opcode(name)
-  return name:gsub("_", ".")
+  return name:gsub("_", "."):gsub("tail.", "tail. ")
 end
 
 setmetatable(_M, { __index = function (tab, name)

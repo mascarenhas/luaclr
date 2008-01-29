@@ -34,6 +34,7 @@ function _M:end_function()
   end
   func.ret_type = "multi"
   self.ilgen = IlGen.new(self)
+  self.ilgen:prologue()
   self:compile(func.block)
   self.ilgen:argslist({ "nil" }, "array")
   self.ilgen:emit(OpCodes.ret)
@@ -110,7 +111,7 @@ local function print_op(opcode, arg, func_type)
         io.write(arg.name)
       end
     elseif opcode == "ldstr" then
-      io.write(string.format("%q", arg))
+      io.write((string.gsub(string.format("%q", arg), "\\\n", "\\n")))
     elseif arg then
       io.write(arg)
     end
@@ -199,8 +200,8 @@ function _M:output_func(func)
   for i, ops in pairs(func.invokeS) do
     print_method_name(func, i, "object", "InvokeS")
     print("  {")
+    print("        .maxstack 24")
     if #func.args == i then
-      print("        .maxstack 12")
       print_locals(func.locals)
     elseif i == "array" then
       print("        .locals init (int32 V_0)")
@@ -213,8 +214,8 @@ function _M:output_func(func)
   for i, ops in pairs(func.invokeM) do
     print_method_name(func, i, "object[]", "InvokeM")
     print("  {")
+    print("        .maxstack 24")
     if #func.args == i then
-      print("        .maxstack 12")
       print_locals(func.locals)
     elseif i == "array" then
       print("        .locals init (int32 V_0)")
@@ -237,7 +238,7 @@ function _M:output()
   print("{")
   print("  .ver 0:0:0:0")
   print("}")
-  print(".assembly fib {}")
+  print(".assembly " .. self.namespace .. " {}")
   for _, func in ipairs(self.funcs) do
     self:output_func(func)
   end

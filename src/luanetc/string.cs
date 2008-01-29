@@ -18,7 +18,7 @@ namespace Lua {
     public override bool LessThan(Reference o) {
       return ((o is String) && (string.Compare(((String)o).S, this.S) < 0));
     }
-    public override bool LessThanOrEqual(Reference o) {
+    public override bool LessThanOrEquals(Reference o) {
       return ((o is String) && (string.Compare(((String)o).S, this.S) <= 0));
     }
 

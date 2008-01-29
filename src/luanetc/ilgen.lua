@@ -22,14 +22,15 @@ true_singleton = "class [lua]Lua.Reference [lua]Lua.True::Instance"
 
 gettable_method = "instance object [lua]Lua.Reference::get_Item(object)"
 settable_method = "instance void [lua]Lua.Reference::set_Item(object, object)"
-neg_method = "object [lua]Lua.Reference::Negate(object)"
-len_method = "instance object [lua]Lua.Reference::Length(object)"
+neg_method = "instance object [lua]Lua.Reference::Negate()"
+len_method = "instance object [lua]Lua.Reference::Length()"
+concat_method = "object [lua]Lua.Reference::Concat(object, object)"
 arith_method = {
   add = "instance object [lua]Lua.Reference::Add(object)",
   sub = "instance object [lua]Lua.Reference::Subtract(object)",
   mul = "instance object [lua]Lua.Reference::Multiply(object)",
   div = "instance object [lua]Lua.Reference::Divide(object)",
-  mod = "instance object [lua]Lua.Reference::Mod(object)",
+  rem = "instance object [lua]Lua.Reference::Mod(object)",
   exp = "instance object [lua]Lua.Reference::Pow(object)"
 }
 arith_method_slow = {
@@ -37,16 +38,16 @@ arith_method_slow = {
   sub = "instance object [lua]Lua.Reference::Subtract(float64)",
   mul = "instance object [lua]Lua.Reference::Multiply(float64)",
   div = "instance object [lua]Lua.Reference::Divide(float64)",
-  mod = "instance object [lua]Lua.Reference::Mod(float64)",
+  rem = "instance object [lua]Lua.Reference::Mod(float64)",
   exp = "instance object [lua]Lua.Reference::Pow(float64)"
 }
 rel_method = {
-  beq = "instance bool [lua]Lua.Reference::Equal(class [lua]Lua.Reference)",
-  bne = "instance bool [lua]Lua.Reference::NotEqual(class [lua]Lua.Reference)",
+  beq = "instance bool [lua]Lua.Reference::Equals(class [lua]Lua.Reference)",
+  bne = "instance bool [lua]Lua.Reference::NotEquals(class [lua]Lua.Reference)",
   blt = "instance bool [lua]Lua.Reference::LessThan(class [lua]Lua.Reference)",
   bgt = "instance bool [lua]Lua.Reference::GreaterThan(class [lua]Lua.Reference)",
-  ble = "instance bool [lua]Lua.Reference::LessThanOrEqual(class [lua]Lua.Reference)",
-  bge = "instance bool [lua]Lua.Reference::GreaterThanOrEqual(class [lua]Lua.Reference)"
+  ble = "instance bool [lua]Lua.Reference::LessThanOrEquals(class [lua]Lua.Reference)",
+  bge = "instance bool [lua]Lua.Reference::GreaterThanOrEquals(class [lua]Lua.Reference)"
 }
 
 max_args = 7
@@ -125,11 +126,13 @@ function _M:store_local(localvar)
       self:load_local(localvar.temp)
       self:emit(OpCodes.stfld, luavalue_ref)
     else
-      self:store_local(localvar.temp)
+      local temp = self:get_temp()
+      self:store_local(temp)
       self:emit(OpCodes.ldarg_0)
       self:emit(OpCodes.ldfld, localvar)
-      self:load_local(localvar.temp)
+      self:load_local(temp)
       self:emit(OpCodes.stfld, luavalue_ref)
+      self:release_temp(temp)
     end
   elseif localvar.isarg then
     self:emit(OpCodes.starg, localvar)
@@ -301,9 +304,11 @@ function _M:rel(op, exp1, exp2, label)
     if type(exp2) ~= "number" and exp2.tag ~="number" then
         self:emit(OpCodes.castclass, luaref_type)
 	self.compiler:compile(exp2)
-	self:emit(OpCodes.dup)
-	self:emit(OpCodes.isinst, luaref_type)
-        self:emit(OpCodes.brfalse, type_mismatch_ref)	
+	if type(exp2) ~= "string" and exp2.tag ~= "string" then
+    	  self:emit(OpCodes.dup)
+	  self:emit(OpCodes.isinst, luaref_type)
+          self:emit(OpCodes.brfalse, type_mismatch_ref)
+	end
         self:emit(OpCodes.castclass, luaref_type)
         self:emit(OpCodes.callvirt, rel_method[op])
         if label then
@@ -313,23 +318,25 @@ function _M:rel(op, exp1, exp2, label)
           self:load_false()
         end
         self:emit(OpCodes.br, out)
-        self:mark_label(type_mismatch_ref)
-        self:emit(OpCodes.pop)
-        self:emit(OpCodes.pop)
-        if op == "beq" then
-          if not label then self:load_false() end
-        else
-          self:error("type mismatch in comparison")
+	if type(exp2) ~= "string" and exp2.tag ~= "string" then
+          self:mark_label(type_mismatch_ref)
+          self:emit(OpCodes.pop)
+          self:emit(OpCodes.pop)
+          if op == "beq" then
+            if not label then self:load_false() end
+	    self:emit(OpCodes.br, out)
+          else
+            self:error("type mismatch in comparison")
+          end
         end
-        self:emit(OpCodes.br, out)
     else
       self:emit(OpCodes.pop)
       if op == "beq" then
         if not label then self:load_false() end
+	self:emit(OpCodes.br, out)
       else
         self:error("type mismatch in comparison")
       end
-      self:emit(OpCodes.br, out)
     end
   end
   if type(exp2) ~= "number" and exp2.tag ~= "number"  then
@@ -343,6 +350,10 @@ function _M:rel(op, exp1, exp2, label)
     end
   end
   self:mark_label(out)
+end
+
+function _M:concat(exp1, exp2)
+  self:emit(OpCodes.call, concat_method)
 end
 
 function _M:error(err)
@@ -522,8 +533,9 @@ function _M:load_false()
   self:emit(OpCodes.ldsfld, false_singleton)
 end
 
-function _M:call(nargs, nres)
-  self:emit(OpCodes.callvirt, call_with(nargs, nres))
+function _M:call(nargs, nres, is_tail)
+  local call_op = (is_tail and OpCodes.tail_callvirt) or OpCodes.callvirt
+  self:emit(call_op, call_with(nargs, nres))
   if nres == 0 then
     self:emit(OpCodes.pop)
   elseif type(nres) == "number" and nres > 1 then
@@ -553,13 +565,7 @@ function _M:call(nargs, nres)
 end
 
 function _M:emit(opcode, ...)
-  if opcode == OpCodes.isinst then
-    self:emit(OpCodes.call, "instance class [mscorlib]System.Type object::GetType()")
-    self:emit(OpCodes.ldtoken, select(1, ...))
-    self:emit(OpCodes.call, "class [mscorlib]System.Type [mscorlib]System.Type::" .. 
-      "GetTypeFromHandle(valuetype [mscorlib]System.RuntimeTypeHandle)")
-    self:emit(OpCodes.ceq)
-  elseif opcode == OpCodes.castclass then
+  if opcode == OpCodes.castclass then
     self:emit(OpCodes.unbox_any, ...)
   else
     self.ops[#self.ops + 1] = { opcode, ... }

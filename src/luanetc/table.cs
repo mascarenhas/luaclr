@@ -321,15 +321,14 @@ namespace Lua
 	}
     }
 
-    Node GetStr(String key) 
+    Node GetStr(string key) 
     {
-      Node n = HashRef(key);
-      do 
-	{  /* check whether `key' is somewhere in the chain */
-	  if (n.key is Reference && key.Equals((Reference)n.key))
-	    return n;  /* that's it */
-	  else n = n.next;
-	} while (n != null);
+      Node n = HashStr(key);
+      do {  /* check whether `key' is somewhere in the chain */
+	if (n.key is String && key == ((String)n.key).S)
+	  return n;  /* that's it */
+	else n = n.next;
+      } while (n != null);
       return Node.NilNode;
     }
 
@@ -346,7 +345,7 @@ namespace Lua
       else 
 	{
 	  if(key is String) 
-	    return GetStr((String)(key));
+	    return GetStr(((String)key).S);
 	  else
 	    return GetAny(key);
 	}
@@ -398,6 +397,11 @@ namespace Lua
       return this.node[hsh % ((this.node.Length - 1) | 1)];
     }
         
+    Node HashStr(string s)
+    {
+      return this.node[((uint)s.GetHashCode()) % ((this.node.Length - 1) | 1)];
+    }
+
     Node HashRef(Reference r) 
     {
       return this.node[((uint)r.GetHashCode()) % ((this.node.Length - 1) | 1)];
@@ -431,7 +435,7 @@ namespace Lua
     {
       get 
 	{
-	  return GetStr(index).val;
+	  return GetStr(index.S).val;
 	}
     }
 
@@ -443,7 +447,7 @@ namespace Lua
       throw new Exception("operation < not supported on tables");
     }
 
-    public override bool LessThanOrEqual(Reference r) {
+    public override bool LessThanOrEquals(Reference r) {
       throw new Exception("operation <= not supported on tables");
     }
 

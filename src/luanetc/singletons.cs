@@ -8,7 +8,7 @@ namespace Lua {
     public override bool LessThan(Reference o) {
       throw new Exception("not supported");
     }
-    public override bool LessThanOrEqual(Reference o) {
+    public override bool LessThanOrEquals(Reference o) {
       throw new Exception("not supported");
     }
 
@@ -103,17 +103,23 @@ namespace Lua {
   public class Nil : Singleton {
     public static readonly Reference Instance = new Nil();
 
+    public override string ToString() { return "nil"; }
+
     public Nil() { }
   }
 
   public class True : Singleton {
     public static readonly Reference Instance = new True();
 
+    public override string ToString() { return "true"; }
+
     public True() { }
   }
 
   public class False : Singleton {
     public static readonly Reference Instance = new False();
+
+    public override string ToString() { return "false"; }
 
     public False() { }
   }
