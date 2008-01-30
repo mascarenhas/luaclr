@@ -2,6 +2,8 @@ local OpCodes = require "cheese.luanetc.opcodes"
 
 module(..., package.seeall)
 
+SYMBOL_SIZE = 30
+
 luavalue_type = "object"
 luavalue_array_type = "object[]"
 luavalue_ref = "object [lua]Lua.UpValue::Ref"
@@ -13,7 +15,8 @@ double_type = "float64"
 array_copy = "void [mscorlib]System.Array::Copy(class [mscorlib]System.Array,int32,class [mscorlib]System.Array,int32,int32)"
 env_field = "class [lua]Lua.Reference [lua]Lua.Closure::Env"
 closure_cons = "instance void [lua]Lua.Closure::.ctor()"
-string_cons = "instance void [lua]Lua.String::.ctor(string)"
+symbol_intern = "class [lua]Lua.Symbol [lua]Lua.Symbol::Intern(string)"
+string_cons = "instance void [lua]Lua.String::.ctor()"
 table_cons = "instance void [lua]Lua.Table::.ctor()"
 
 nil_singleton = "class [lua]Lua.Reference [lua]Lua.Nil::Instance"
@@ -644,9 +647,12 @@ function _M:class_constructor()
     elseif type(val) == "number" then
       self:emit(OpCodes.ldc_r8, val)
       self:emit(OpCodes.box, double_type)
+    elseif string.len(val) > SYMBOL_SIZE then
+      self:emit(OpCodes.ldstr, val)
+      self:emit(OpCodes.call, string_cons);
     else
       self:emit(OpCodes.ldstr, val)
-      self:emit(OpCodes.newobj, string_cons);
+      self:emit(OpCodes.call, symbol_intern);
     end
     self:emit(OpCodes.stsfld, self.compiler:get_literal(val))
   end

@@ -248,6 +248,7 @@ namespace Lua
 
     Node NewKey(object key) 
     {
+      if(key is String) key = Symbol.Intern(((String)key).S);
       Node mp = MainPosition(key);
       if (mp.val != Nil.Instance) 
 	{  /* main position is not free? */
@@ -321,11 +322,11 @@ namespace Lua
 	}
     }
 
-    Node GetStr(string key) 
+    Node GetSymbol(Symbol key) 
     {
-      Node n = HashStr(key);
+      Node n = HashSymbol(key);
       do {  /* check whether `key' is somewhere in the chain */
-	if (n.key is String && key == ((String)n.key).S)
+	if (key == n.key)
 	  return n;  /* that's it */
 	else n = n.next;
       } while (n != null);
@@ -342,12 +343,17 @@ namespace Lua
 	  else
 	    return GetAny(key);
 	} 
-      else 
+      else if(key is Symbol) 
 	{
-	  if(key is String) 
-	    return GetStr(((String)key).S);
-	  else
-	    return GetAny(key);
+	  return GetSymbol((Symbol)key);
+	}
+      else if(key is String)
+	{
+	  return GetSymbol(Symbol.Intern(((String)key).S));
+	}
+      else
+	{
+	  return GetAny(key);
 	}
     }
 
@@ -387,19 +393,21 @@ namespace Lua
     {
       if(key is double)
 	return HashNum((double)key);
-      else 
+      else if(key is Symbol)
+	return HashSymbol((Symbol)key);
+      else
 	return HashRef((Reference)key);
     }
 
     Node HashNum(double n) 
     {
-      uint hsh = (uint)n.GetHashCode();
+      uint hsh = (uint)n;
       return this.node[hsh % ((this.node.Length - 1) | 1)];
     }
         
-    Node HashStr(string s)
+    Node HashSymbol(Symbol s)
     {
-      return this.node[((uint)s.GetHashCode()) % ((this.node.Length - 1) | 1)];
+      return this.node[s.hash % ((this.node.Length - 1) | 1)];
     }
 
     Node HashRef(Reference r) 
@@ -431,11 +439,15 @@ namespace Lua
 	}
     }
 
-    public object this[String index] 
+    public object this[Symbol index] 
     {
       get 
+      {
+	  return GetSymbol(index).val;
+      }
+      set
 	{
-	  return GetStr(index.S).val;
+	  Set(index, value);
 	}
     }
 

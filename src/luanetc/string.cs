@@ -1,19 +1,48 @@
 using System;
+using System.Collections.Generic;
 
 namespace Lua {
-  public class String : Reference {
-    public string S;
+  public class Symbol : String {
+    public static Dictionary<string, Symbol> interned = new Dictionary<string, Symbol>();
 
-    public String(string s) {
-      this.S = s;
+    public static Symbol Intern(string s) {
+      Symbol sym;
+      interned.TryGetValue(s, out sym);
+      if(sym == null) {
+	sym = new Symbol(s);
+	interned[s] = sym;
+      }
+      return sym;
     }
 
-    public override int GetHashCode() { return this.S.GetHashCode(); }
+    private Symbol(string s) : base(s) {
+    }
+
+    public override bool Equals(Reference o) {
+      if(o is Symbol)
+	return this == o;
+      else if(o is String)
+	return ((String)o).S == this.S;
+      else return false;
+    }
+
+  }
+
+  public class String : Reference {
+    public string S;
+    public uint hash;
+  
+    public String(string s) {	
+      this.S = s;
+      this.hash = (uint)this.S.GetHashCode();
+    }
+
+    public override int GetHashCode() { return (int)hash; }
 
     public override string ToString() { return this.S; }
 
     public override bool Equals(Reference o) {
-      return ((o is String) && (((String)o).S == this.S));
+      return (o is String) && ((String)o).S == this.S;
     }
     public override bool LessThan(Reference o) {
       return ((o is String) && (string.Compare(((String)o).S, this.S) < 0));
