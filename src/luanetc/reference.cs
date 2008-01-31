@@ -3,6 +3,8 @@ using System;
 namespace Lua {
   public abstract class Reference {
 
+    public static Symbol __index = Symbol.Intern("__index");
+
     public static object Concat(object o1, object o2) {
       if(o1 is String) {
 	if(o2 is String) {
@@ -89,6 +91,8 @@ namespace Lua {
     public abstract object Length();
 
     public abstract object this[object key] { get; set; }
+
+    public virtual object this[Symbol key] { get { return this[(object)key]; } set { this[(object)key] = value; } }
 
     public abstract Table Metatable { get; set; }
   }

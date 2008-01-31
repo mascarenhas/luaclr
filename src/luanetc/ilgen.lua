@@ -24,7 +24,9 @@ false_singleton = "class [lua]Lua.Reference [lua]Lua.False::Instance"
 true_singleton = "class [lua]Lua.Reference [lua]Lua.True::Instance"
 
 gettable_method = "instance object [lua]Lua.Reference::get_Item(object)"
+gettable_symbol_method = "instance object [lua]Lua.Reference::get_Item(class [lua]Lua.Symbol)"
 settable_method = "instance void [lua]Lua.Reference::set_Item(object, object)"
+settable_symbol_method = "instance void [lua]Lua.Reference::set_Item(class [lua]Lua.Symbol, object)"
 neg_method = "instance object [lua]Lua.Reference::Negate()"
 len_method = "instance object [lua]Lua.Reference::Length()"
 concat_method = "object [lua]Lua.Reference::Concat(object, object)"
@@ -420,6 +422,7 @@ function _M:argslist(list, return_array)
   if last and last.tag == "call" then
     if #list == 1 then
       self.compiler:compile(last, "array")
+      self:release_temp(temp)
       return nil
     end
     return_array = true
@@ -455,11 +458,13 @@ function _M:argslist(list, return_array)
       self:emit(OpCodes.stelem, luavalue_type)
     end
     self:load_local(temp)
+    self:release_temp(temp)
     return nil
   else
     for i = 1, #list do
       self.compiler:compile(list[i])
     end
+    self:release_temp(temp)
     return #list
   end
   self:release_temp(temp)
@@ -496,7 +501,7 @@ function _M:store_global(name)
   self:emit(OpCodes.ldfld, env_field)
   self:load_string(name)
   self:load_local(temp)
-  self:settable()
+  self:settable_symbol()
   self:release_temp(temp)
 end
 
@@ -504,15 +509,23 @@ function _M:load_global(name)
   self:emit(OpCodes.ldarg_0)
   self:emit(OpCodes.ldfld, env_field)
   self:load_string(name)
-  self:gettable()
+  self:gettable_symbol()
 end
 
 function _M:settable()
   self:emit(OpCodes.callvirt, settable_method)
 end
 
+function _M:settable_symbol()
+  self:emit(OpCodes.callvirt, settable_symbol_method)
+end
+
 function _M:gettable()
   self:emit(OpCodes.callvirt, gettable_method)
+end
+
+function _M:gettable_symbol()
+  self:emit(OpCodes.callvirt, gettable_symbol_method)
 end
 
 function _M:load_string(name)
@@ -647,9 +660,6 @@ function _M:class_constructor()
     elseif type(val) == "number" then
       self:emit(OpCodes.ldc_r8, val)
       self:emit(OpCodes.box, double_type)
-    elseif string.len(val) > SYMBOL_SIZE then
-      self:emit(OpCodes.ldstr, val)
-      self:emit(OpCodes.call, string_cons);
     else
       self:emit(OpCodes.ldstr, val)
       self:emit(OpCodes.call, symbol_intern);

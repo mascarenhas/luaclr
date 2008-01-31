@@ -58,4 +58,46 @@ namespace Lua {
       return new object[] { ((double)(DateTime.Now.Ticks))/((double)10000000) };
     }
   }
+  
+  public class Pairs : CLRFunction1 {
+    public override object InvokeS(object t) {
+      return this.InvokeM(t)[0];
+    }
+    public override object[] InvokeM(object t) {
+      object[] res = new object[3];
+      res[0] = new Next();
+      res[1] = t;
+      res[2] = Nil.Instance;
+      return res;
+    }
+  }
+
+  public class SetMetatable : CLRFunction2 {
+    public override object InvokeS(object t, object m) {
+      Reference r = (Reference)t;
+      if(m != Nil.Instance)
+	r.Metatable = (Table)m;
+      else
+	r.Metatable = null;
+      return Nil.Instance;
+    }
+    public override object[] InvokeM(object t, object m) {
+      return new object[] { this.InvokeS(t, m) };
+    }
+  }
+
+  public class Next: CLRFunction2 {
+    public override object InvokeS(object t, object k) {
+      return this.InvokeM(t, k)[0];
+    }
+    public override object[] InvokeM(object t, object k) {
+      Table tab = (Table)t;
+      object v;
+      tab.Next(ref k, out v);
+      if(v == Nil.Instance)
+	return new object[] { k };
+      else
+	return new object[] { k, v };
+    }
+  }
 }

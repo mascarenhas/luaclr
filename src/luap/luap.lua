@@ -295,7 +295,7 @@ FuncName = (NAME .. star(DOT .. NAME) .. opt(COLON .. NAME)) %
 			 for _, v in ipairs(tree[2]) do
 			   funcname_node = { tag = "index", table = funcname_node, index = { tag = "string", val = v[2].val } }
 			 end
-                         if #tree[3]>0 then funcname_node.self = tree[3][1][2].val end
+		       	 if #tree[3]>0 then funcname_node.self = tree[3][2].val end
                          return funcname_node
                        end
 

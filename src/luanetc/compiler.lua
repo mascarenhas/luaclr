@@ -85,12 +85,17 @@ function _M:get_literal(lit)
     return "object " .. func.clr_type .. "::LiteralNil"
   else
     if func.literals[lit] then
-      return "object " .. func.clr_type .. "::" .. func.literals[lit]
+      return func.literals[lit]
     else
       func.n_literals = func.n_literals + 1
-      local new_lit = "Literal" .. func.n_literals
+      local new_lit
+      if type(lit) == "string" then
+	new_lit = "class [lua]Lua.Symbol " .. func.clr_type .. "::" .. "Literal" .. func.n_literals
+      else
+	new_lit = "object " .. func.clr_type .. "::" .. "Literal" .. func.n_literals
+      end
       func.literals[lit] = new_lit
-      return "object " .. func.clr_type .. "::" .. new_lit
+      return new_lit
     end
   end
 end
@@ -126,7 +131,7 @@ end
 
 local function print_literal(type, lit)
   lit = lit:gsub(type .. "::", "")
-  print("  .field public static object " .. lit)
+  print("  .field public static " .. lit)
 end
 
 local function print_upvalue(func_type, upval)
@@ -175,7 +180,7 @@ end
 function _M:output_func(func)
   print_class_header(func.clr_type)
   print("{")
-  print_literal(func.clr_type, "LiteralNil")
+  print_literal(func.clr_type, "object LiteralNil")
   for k, v in pairs(func.literals) do
     print_literal(func.clr_type, v)
   end

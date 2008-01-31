@@ -5,18 +5,20 @@ namespace Lua
 {
   class Node 
   {
-    public static readonly Node DummyNode = new Node();
-    public static readonly Node NilNode = new Node();
+    public static readonly Node DummyNode = new Node(0);
+    public static readonly Node NilNode = new Node(0);
 
+    public int position;
     public object key;
     public object val;
     public Node next;
 
-    public Node() 
+    public Node(int pos) 
     {
       key = Nil.Instance;
       val = Nil.Instance;
       next = null;
+      position = pos;
     }
 
     public void Copy(Node c) 
@@ -54,7 +56,7 @@ namespace Lua
     Node[] node;
     int firstFree;
 
-    Table _meta;
+    Table _meta = null;
 
     int ArrayIndex(object key) 
     {
@@ -115,7 +117,7 @@ namespace Lua
       //for (; lg <= LuaTable.MAXBITS; lg++) nums[lg] = 0;  /* reset other counts */
       narray = totaluse;  /* all previous uses were in array part */
       /* count elements in hash part */
-      i = (1 << this.logSizeNode);
+      i = this.node.Length;
       while (i-- > 0) 
 	{
 	  Node n = this.node[i];
@@ -154,7 +156,7 @@ namespace Lua
       for(int i = 0; i < this.sizeArray; i++)
 	newArr[i] = this.array[i];
       for(int i = this.sizeArray; i < newArr.Length; i++)
-	newArr[i] = new Node();
+	newArr[i] = new Node(i);
       this.array = newArr;
       this.sizeArray = size;
     }
@@ -175,7 +177,7 @@ namespace Lua
 	  this.node = new Node[size];
 	  for (i=0; i < size; i++) 
 	    {
-	      this.node[i] = new Node();
+	      this.node[i] = new Node(i);
 	    }
 	}
       this.logSizeNode = (byte)lsize;
@@ -188,7 +190,7 @@ namespace Lua
       int oldasize = this.sizeArray;
       int oldhsize = this.logSizeNode;
       Node[] nold;
-      Node[] temp = new Node[] { new Node() };
+      Node[] temp = new Node[] { new Node(0) };
       if(oldhsize != 0)
 	nold = this.node;  /* save old hash ... */
       else 
@@ -225,8 +227,9 @@ namespace Lua
       for (i = (1 << oldhsize) - 1; i >= 0; i--) 
 	{
 	  Node old = nold[i];
-	  if (old.val != Nil.Instance)
+	  if (old.val != Nil.Instance) {
 	    Set(old.key, old.val);
+	  }
 	}
     }
 
@@ -235,7 +238,10 @@ namespace Lua
       int nasize = 0;
       int nhsize = 0;
       NumUse(ref nasize, ref nhsize);  /* compute new sizes for array and hash parts */
-      Resize(nasize, FastLog2((uint)nhsize) + 1);
+      /* Tries to have at least 50% free space on Hash for better performance profile */
+      int l_nhsize = FastLog2((uint)nhsize);
+      l_nhsize = (1<<l_nhsize)==nhsize?l_nhsize+1:l_nhsize+2;
+      Resize(nasize, l_nhsize);
     }
 
     public Table(int narray, int lnhash) 
@@ -248,7 +254,6 @@ namespace Lua
 
     Node NewKey(object key) 
     {
-      if(key is String) key = Symbol.Intern(((String)key).S);
       Node mp = MainPosition(key);
       if (mp.val != Nil.Instance) 
 	{  /* main position is not free? */
@@ -282,7 +287,7 @@ namespace Lua
       /* no more free places; must create one */
       mp.val = False.Instance; /* avoid new key being removed */
       Rehash();  /* grow table */
-      Node newn = Get(key);  /* get new position */
+      Node newn = Get(ref key);  /* get new position */
       newn.val = Nil.Instance;
       return newn;
     }
@@ -295,14 +300,14 @@ namespace Lua
 	  Node n = MainPosition(key);
 	  do 
 	    {  /* check whether `key' is somewhere in the chain */
-	      if (key == n.key) return n;  /* that's it */
+	      if (key.Equals(n.key)) return n;  /* that's it */
 	      else n = n.next;
 	    } while (n != null);
 	  return Node.NilNode;
 	}
     }
 
-    Node GetNum(int key) 
+    Node GetInt(int key) 
     {
       if (1 <= key && key <= this.sizeArray) 
 	{
@@ -310,21 +315,25 @@ namespace Lua
 	}
       else
 	{
-	  double nk = (double)key;
-	  Node n = HashNum(nk);
-	  do 
-	    {  /* check whether `key' is somewhere in the chain */
-	      if (n.key is double && (double)(n.key) == nk)
-		return n;  /* that's it */
-	      else n = n.next;
-	    } while (n!=null);
-	  return Node.NilNode;
+	  return GetDouble(key);
 	}
     }
 
+    Node GetDouble(double key)
+    {
+      Node n = MainPosition(key);
+      do 
+	{  /* check whether `key' is somewhere in the chain */
+	  if (n.key is double && (double)(n.key) == key)
+	    return n;  /* that's it */
+	  else n = n.next;
+	} while (n!=null);
+      return Node.NilNode;
+   }
+
     Node GetSymbol(Symbol key) 
     {
-      Node n = HashSymbol(key);
+      Node n = this.node[key.hash % ((this.node.Length - 1) | 1)];
       do {  /* check whether `key' is somewhere in the chain */
 	if (key == n.key)
 	  return n;  /* that's it */
@@ -333,15 +342,16 @@ namespace Lua
       return Node.NilNode;
     }
 
-    Node Get(object key) 
+    Node Get(ref object key) 
     {
       if(key is double) 
 	{
-	  int k = (int)((double)key);
-	  if (((double)k) == (double)key)  /* is an integer index? */
-	    return GetNum(k);  /* use specialized version */
+	  double kd = (double)key;
+	  int k = (int)kd;
+	  if ((double)k == kd)  /* is an integer index? */
+	    return GetInt(k);  /* use specialized version */
 	  else
-	    return GetAny(key);
+	    return GetDouble(kd);
 	} 
       else if(key is Symbol) 
 	{
@@ -349,7 +359,9 @@ namespace Lua
 	}
       else if(key is String)
 	{
-	  return GetSymbol(Symbol.Intern(((String)key).S));
+	  Symbol s = Symbol.Intern(((String)key).S);
+	  key = s;
+	  return GetSymbol(s);
 	}
       else
 	{
@@ -359,15 +371,13 @@ namespace Lua
 
     void Set(object key, object val) 
     {
-      Node p = Get(key);
+      Node p = Get(ref key);
       if(p != Node.NilNode) 
 	{
 	  p.val = val;
 	} 
-      else 
+      else if(val != Nil.Instance) 
 	{
-	  if(key is double && Double.IsNaN((double)key))
-	    throw new Exception("table index is NaN");
 	  if(key == Nil.Instance)
 	    throw new Exception("table index is nil");
 	  p = NewKey(key);
@@ -377,12 +387,12 @@ namespace Lua
 
     void SetNum(int key, object val) 
     {
-      Node p = GetNum(key);
+      Node p = GetInt(key);
       if(p != Node.NilNode) 
 	{
 	  p.val = val;
 	} 
-      else 
+      else if(val != Nil.Instance)
 	{
 	  p = NewKey((double)key);
 	  p.val = val;
@@ -391,28 +401,98 @@ namespace Lua
 
     Node MainPosition(object key) 
     {
-      if(key is double)
-	return HashNum((double)key);
-      else if(key is Symbol)
-	return HashSymbol((Symbol)key);
+      int hash = Hash(key);
+      return this.node[hash];
+    }
+
+    Node MainPosition(double key) 
+    {
+      int hash = Hash(key);
+      return this.node[hash];
+    }
+
+    Node MainPosition(Symbol key) 
+    {
+      int hash = Hash(key);
+      return this.node[hash];
+    }
+
+    int Hash(object o) {
+      if(o is double)
+	return Hash((double)o);
+      else if(o is Symbol)
+	return Hash((Symbol)o);
+      else if(o is String)
+	return Hash(Symbol.Intern(((String)o).S));
       else
-	return HashRef((Reference)key);
+	return o.GetHashCode() % ((this.node.Length - 1) | 1);
     }
 
-    Node HashNum(double n) 
-    {
+    int Hash(double n) {
       uint hsh = (uint)n;
-      return this.node[hsh % ((this.node.Length - 1) | 1)];
-    }
-        
-    Node HashSymbol(Symbol s)
-    {
-      return this.node[s.hash % ((this.node.Length - 1) | 1)];
+      return (int)(hsh % ((this.node.Length - 1) | 1));
     }
 
-    Node HashRef(Reference r) 
-    {
-      return this.node[((uint)r.GetHashCode()) % ((this.node.Length - 1) | 1)];
+    int Hash(Symbol s) {
+      return (int)(s.hash % ((this.node.Length - 1) | 1));
+    }
+
+    /*
+    ** returns the index of a `key' for table traversals. First goes all
+    ** elements in the array part, then elements in the hash part. The
+    ** beginning of a traversal is signalled by -1.
+    */
+    public void Next (ref object key, out object val) {
+      int i;
+      val = Nil.Instance;
+      if (key == Nil.Instance) {
+	i = 0;  /* first iteration */
+      } else {
+	i = ArrayIndex(key);
+      }
+      if (key == Nil.Instance || (0 < i && i < this.sizeArray)) { /* is `key' inside array part? */
+	for (; i < this.sizeArray; i++) {  /* try first array part */
+	  if (this.array[i].val != Nil.Instance) {  /* a non-nil value? */
+	    key = (double)i;
+	    val = this.array[i].val;
+	    return;
+	  }
+	}
+      } 
+      int sizeNode = this.node.Length;
+      if(i == this.sizeArray) {
+	for(int h = 0; h < sizeNode; h++) {
+	  Node n = this.node[h];
+	  if(n.val != Nil.Instance) {
+	    key = n.key;
+	    val = n.val;
+	    return;
+	  }
+	}
+	key = Nil.Instance;
+	val = Nil.Instance;
+	return;
+      } else {
+	int h = (int)Hash(key);
+	Node n = this.node[h];
+	do {
+	  if(key.Equals(n.key)) break;
+	  n = n.next;
+	} while(n != null);
+	if(n == null) throw new Exception("invalid key to next");
+	h = n.position;
+	for(h++; h < sizeNode; h++) {
+	  n = this.node[h];
+	  if(n.val != Nil.Instance) {
+	    key = n.key;
+	    val = n.val;
+	    return;
+	  }
+	}
+	key = Nil.Instance;
+	val = Nil.Instance;
+	return;
+      }
     }
 
     public override Table Metatable 
@@ -431,23 +511,102 @@ namespace Lua
     {
       get 
 	{
-	  return Get(index).val;
+	  object value = Nil.Instance;
+	  if(index is Symbol) 
+	    {
+	      Symbol key = (Symbol)index;
+	      Node n = this.node[key.hash % ((this.node.Length - 1) | 1)];
+	      do {  /* check whether `key' is somewhere in the chain */
+		if (key == n.key) {
+		  value = n.val;
+		  break;  /* that's it */
+		} else n = n.next;
+	      } while (n != null);
+	    }
+	  else if(index is double) 
+	    {
+	      double kd = (double)index;
+	      int k = (int)kd;
+	      if ((double)k == kd)  /* is an integer index? */
+		value = GetInt(k).val;  /* use specialized version */
+	      else
+		value = GetDouble(kd).val;
+	    } 
+	  else if(index is String)
+	    {
+	      Symbol key = Symbol.Intern(((String)index).S);
+	      Node n = this.node[key.hash % ((this.node.Length - 1) | 1)];
+	      do {  /* check whether `key' is somewhere in the chain */
+		if (key == n.key) {
+		  value = n.val;  /* that's it */
+		  break;
+		} else n = n.next;
+	      } while (n != null);
+	    }
+	  else
+	    {
+	      value = GetAny(index).val;
+	    }
+	  object idx_meta;
+	  if(value == Nil.Instance && this._meta != null && ((idx_meta = this._meta.GetSymbol(Reference.__index).val) != Nil.Instance)) {
+	    if(idx_meta is Closure)
+	      value = ((Reference)idx_meta).InvokeS(this, index);
+	    else
+	      value = ((Table)idx_meta)[index];
+	  }
+	  return value;
 	}
       set 
 	{
-	  Set(index, value);
+	  Node p = Get(ref index);
+	  if(p != Node.NilNode) 
+	    {
+	      p.val = value;
+	    } 
+	  else if(value != Nil.Instance) 
+	    {
+	      if(index == Nil.Instance)
+		throw new Exception("table index is nil");
+	      p = NewKey(index);
+	      p.val = value;
+	    }
 	}
     }
 
-    public object this[Symbol index] 
+    public override object this[Symbol key] 
     {
       get 
       {
-	  return GetSymbol(index).val;
+	object value = Nil.Instance;
+	object idx_meta;
+	Node n = this.node[key.hash % ((this.node.Length - 1) | 1)];
+	do {  /* check whether `key' is somewhere in the chain */
+	  if (key == n.key) {
+	    value = n.val;  /* that's it */
+	    break;
+	  } else n = n.next;
+	} while (n != null);
+	if(value == Nil.Instance && this._meta != null && ((idx_meta = this._meta.GetSymbol(Reference.__index).val) != Nil.Instance)) {
+	  if(idx_meta is Closure)
+	    value = ((Reference)idx_meta).InvokeS(this, key);
+	  else
+	    value = ((Table)idx_meta)[key];
+	}
+	return value;
       }
       set
 	{
-	  Set(index, value);
+	  Node n = this.node[key.hash % ((this.node.Length - 1) | 1)];
+	  do {  /* check whether `key' is somewhere in the chain */
+	    if (key == n.key) {
+	      n.val = value;
+	      return;  /* that's it */
+	    } else n = n.next;
+	  } while (n != null);
+	  if(n==null && value != Nil.Instance) {
+	    n = NewKey(key);
+	    n.val = value;
+	  }
 	}
     }
 
@@ -465,6 +624,10 @@ namespace Lua
 
     public override object Length() {
       return (double)this.sizeArray;
+    }
+
+    public override string ToString() {
+      return "Lua.Table: " + this.GetHashCode();
     }
 
     public override object[] InvokeM(object[] args) {
