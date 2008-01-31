@@ -1,0 +1,26 @@
+LUA_MODULE_DIR= C:\usr\local\share\lua\5.1
+
+CS_FILES= src\luanetc\closure.cs  src\luanetc\clrfunction.cs  src\luanetc\reference.cs  src\luanetc\singletons.cs  src\luanetc\stdlib.cs  src\luanetc\string.cs  src\luanetc\table.cs  src\luanetc\value.cs
+
+lua.dll: $(CS_FILES)
+	csc /t:library /out:lua.dll $(CS_FILES)
+
+all: lua.dll
+
+install:
+	IF NOT EXIST "$(LUA_MODULE_DIR)\stream" mkdir "$(LUA_MODULE_DIR)\stream"
+	copy src\cheese.lua "$(LUA_MODULE_DIR)"
+	copy src\stream\*.lua "$(LUA_MODULE_DIR)\stream"
+	IF NOT EXIST "$(LUA_MODULE_DIR)\cheese" mkdir "$(LUA_MODULE_DIR)\cheese"
+	copy src\parsers.lua "$(LUA_MODULE_DIR)\cheese"
+	copy src\luap\luap.lua "$(LUA_MODULE_DIR)\cheese"
+	IF NOT EXIST "$(LUA_MODULE_DIR)\cheese\luap" mkdir "$(LUA_MODULE_DIR)\cheese\luap"
+	copy src\luap\dump.lua "$(LUA_MODULE_DIR)\cheese\luap"
+	IF NOT EXIST "$(LUA_MODULE_DIR)\cheese\luanetc" mkdir "$(LUA_MODULE_DIR)\cheese\luanetc"
+	copy src\luanetc\*.lua "$(LUA_MODULE_DIR)\cheese\luanetc"
+
+uninstall:
+	rmdir /s "$(LUA_MODULE_DIR)\cheese"
+	rmdir /s "$(LUA_MODULE_DIR)\stream"
+	del "$(LUA_MODULE_DIR)\cheese.lua"
+
