@@ -1,13 +1,11 @@
-LUA_INCLUDE_DIR= /usr/local/include/lua51
-LUA_MODULE_DIR= /usr/local/share/lua/5.1
-LUA_LIB_DIR= /usr/local/lib/lua/5.1
-LDFLAGS= -bundle -undefined dynamic_lookup
-CFLAGS= -O2 -Wall -I$(LUA_INCLUDE_DIR)
+LUA_INCLUDE_DIR= /usr/include/lua5.1
+LUA_MODULE_DIR= /usr/share/lua/5.1
+LUA_LIB_DIR= /usr/lib/lua/5.1
 
-CS_FILES= src\luanetc\closure.cs  src\luanetc\clrfunction.cs  src\luanetc\reference.cs  src\luanetc\singletons.cs  src\luanetc\stdlib.cs  src\luanetc\string.cs  src\luanetc\table.cs  src\luanetc\value.cs
+CS_FILES= src/luanetc/closure.cs  src/luanetc/clrfunction.cs  src/luanetc/reference.cs  src/luanetc/singletons.cs  src/luanetc/stdlib.cs  src/luanetc/string.cs  src/luanetc/table.cs  src/luanetc/value.cs
 
 lua.dll: $(CS_FILES)
-	csc /t:library /out:lua.dll $(CS_FILES)
+	gmcs /t:library /out:lua.dll $(CS_FILES)
 
 all: lua.dll
 
