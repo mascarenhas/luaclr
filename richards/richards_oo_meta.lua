@@ -131,7 +131,8 @@ local hold_table = {
 
 function task_proto:hold_self()
   holdcount = holdcount + 1
-  self.state = hold_table[self.state] or self.state
+  local state = self.state
+  self.state = hold_table[state] or state
   return self.link or { tick = task_proto.quit }
 end
 
@@ -150,7 +151,8 @@ local release_table = {
 
 function task_proto:release(id)
   local t = find_task(id)
-  t.state = release_table[t.state] or t.state
+  local state = t.state
+  t.state = release_table[state] or state
   if t.pri > self.pri then
     return t
   else
@@ -172,12 +174,14 @@ function task_proto:qpkt(pkt)
   qpktcount = qpktcount + 1
   pkt.link = nil
   pkt.id = self.id
-  if not t.wkq then
+  local wkq = t.wkq
+  if not wkq then
     t.wkq = pkt
-    t.state = queue_table[t.state] or t.state
+    local state = t.state
+    t.state = queue_table[state] or state
     if t.pri > self.pri then return t end
   else
-    t.wkq = append(pkt, t.wkq)
+    append(pkt, wkq)
   end
   return self
 end
@@ -196,11 +200,12 @@ local floor = math.floor
 local function fn_idle(self, pkt)
   self.v2 = self.v2 - 1
   if self.v2 == 0 then return self:hold_self() end
-  if (self.v1 % 2) == 0 then
-    self.v1 = floor(self.v1 / 2)
+  local v1 = self.v1
+  if (v1 % 2) == 0 then
+    self.v1 = floor(v1 / 2)
     return self:release(I_DEVA)
   else
-    self.v1 = bxor(floor(self.v1 / 2), 0xD008)
+    self.v1 = bxor(floor(v1 / 2), 0xD008)
     return self:release(I_DEVB)
   end
 end
@@ -215,33 +220,42 @@ local function fn_work(self, pkt)
   pkt.id = self.v1
   pkt.a1 = 1
   for i = 1, BUFSIZE do
-    self.v2 = self.v2 + 1
-    if self.v2 > 26 then self.v2 = 1 end
-    pkt.a2[i] = alphabet[self.v2]
+    local v2 = self.v2 + 1
+    if v2 > 26 then v2 = 1 end
+    pkt.a2[i] = alphabet[v2]
+    self.v2 = v2
   end
   return self:qpkt(pkt)
 end
 
 local function fn_handler(self, pkt)
+  local v1 = self.v1
+  local v2 = self.v2
   if pkt then
     if pkt.kind == "work" then
-      self.v1 = append(pkt, self.v1)
+      if v1 then append(pkt, v1) else 
+	v1 = append(pkt, v1)
+	self.v1 = v1
+      end
     else
-      self.v2 = append(pkt, self.v2)
+      if v2 then append(pkt, v2) else 
+	v2 = append(pkt, v2) 
+	self.v2 = v2
+      end
     end
   end
 
-  if self.v1 then
-    local workpkt = self.v1
+  if v1 then
+    local workpkt = v1
     local count = workpkt.a1
     if count > BUFSIZE then
-      self.v1 = self.v1.link
+      self.v1 = workpkt.link
       return self:qpkt(workpkt)
     end
 
-    if self.v2 then
-      local devpkt = self.v2
-      self.v2 = self.v2.link
+    if v2 then
+      local devpkt = v2
+      self.v2 = devpkt.link
       devpkt.a1 = workpkt.a2[count]
       workpkt.a1 = count + 1
       return self:qpkt(devpkt)
@@ -253,8 +267,8 @@ end
 
 local function fn_dev(self, pkt)
   if not pkt then
-    if not self.v1 then return self:suspend() end
     pkt = self.v1
+    if not pkt then return self:suspend() end
     self.v1 = nil
     return self:qpkt(pkt)
   else
@@ -266,7 +280,7 @@ end
 
 local function main()
   local wkq
-  print("Benchmark starting")
+  if tracing then print("Benchmark starting") end
   local idle = task(I_IDLE, nil, 0, wkq, "run", fn_idle, 1, COUNT)
   wkq = packet(nil, 0, "work")
   wkq = packet(wkq, 0, "work")
@@ -282,23 +296,30 @@ local function main()
   wkq = nil
   local deva = task(I_DEVA, handlerb, 4000, wkq, "wait", fn_dev, nil, nil)
   local devb = task(I_DEVB, deva, 5000, wkq, "wait", fn_dev, nil, nil)
-  print("Starting")
+  if tracing then print("Starting") end
   local t1 = os.clock()
   while devb do
     devb = devb:tick()
   end
   local t2 = os.clock()
-  print("\nfinished")
-  print("qpkt count = " .. qpktcount .. " holdcount = " .. holdcount)
+  if tracing then 
+    print("\nfinished")
+    print("qpkt count = " .. qpktcount .. " holdcount = " .. holdcount)
+  end
   local results
   if qpktcount == QPKTCOUNT and holdcount == HOLDCOUNT then
     results = "correct"
   else
     results = "incorrect"
   end
-  print("these results are " .. results)
-  print("\nend of run")
-  print("Time: ", t2-t1)
+  if tracing or results == "incorrect" then
+    print("these results are " .. results)
+  end
+  if tracing then print("\nend of run") end
+  local delta = t2 - t1
+  return delta
 end
 
-main()
+local delta = main()
+if tracing then io.write("Time (in seconds): ") end
+print(delta)

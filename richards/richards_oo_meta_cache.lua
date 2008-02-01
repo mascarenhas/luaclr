@@ -190,9 +190,13 @@ local function task(id, link, pri, wkq, state, fn, v1, v2)
   local t = { link = link, id = id, pri = pri,
 	      wkq = wkq, state = state, fn = fn,
 	      v1 = v1, v2 = v2 }
-  for k, v in pairs(task_proto) do
-    t[k] = v
-  end
+  setmetatable(t, { __index = function (tab, k)
+				local v = task_proto[k]
+				if v then
+				  tab[k] = v
+				end
+				return v
+			      end })
   tasktab[id] = t
   return t
 end
