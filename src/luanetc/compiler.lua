@@ -36,7 +36,7 @@ function _M:end_function()
   self.ilgen = IlGen.new(self)
   self.ilgen:prologue()
   self:compile(func.block)
-  self.ilgen:argslist({ "nil" }, "array")
+  self.ilgen:argslist({ {tag = "nil", type = "nil"} }, "array")
   self.ilgen:emit(OpCodes.ret)
   if func.isvararg then
     func.invokeM["vararg"] = self.ilgen.ops
@@ -113,7 +113,7 @@ local function print_op(opcode, arg, func_type)
       if opcode == "ldfld" or opcode == "stfld" and arg.isupval then
 	io.write("class [lua]Lua.UpValue " .. func_type .. "::" .. arg.name)
       else
-        io.write(arg.name)
+        io.write("'" .. arg.name .. "'")
       end
     elseif opcode == "ldstr" then
       io.write((string.gsub(string.format("%q", arg), "\\\n", "\\n")))
@@ -166,12 +166,24 @@ end
 
 local function print_locals(locals)
   local tab = {}
-  for _, l in ipairs(locals) do
+  for i, l in ipairs(locals) do
     if l.isupval then
       tab[#tab + 1] = "class [lua]Lua.UpValue " .. l.name 
     else 
-      local ltype = l.type or "object"
-      tab[#tab + 1] = ltype .. " " .. l.name
+      local ltype
+      if l.type == "number" then
+	ltype = IlGen.double_type
+      elseif l.type == "string" then
+	ltype = "object"
+      elseif l.type == "boolean" then
+	ltype = "object"
+      elseif l.type == "any" then
+	ltype = "object"
+      else
+	ltype = l.type or "object"
+      end
+      l.name = l.name .. "_" .. i
+      tab[#tab + 1] = ltype .. " '" .. l.name .. "'"
     end
   end
   print("        .locals init (" .. table.concat(tab, ", ") .. ")")

@@ -610,6 +610,47 @@ namespace Lua
 	}
     }
 
+    public override object this[double key] 
+    {
+      get 
+      {
+	object value = Nil.Instance;
+	object idx_meta;
+	int k = (int)key;
+	if ((double)k == key)  /* is an integer index? */
+	  value = GetInt(k).val;  /* use specialized version */
+	else
+	  value = GetDouble(key).val;
+	if(value == Nil.Instance && this._meta != null && ((idx_meta = this._meta.GetSymbol(Reference.__index).val) != Nil.Instance)) {
+	  if(idx_meta is Closure)
+	    value = ((Reference)idx_meta).InvokeS(this, key);
+	  else
+	    value = ((Table)idx_meta)[key];
+	}
+	return value;
+      }
+      set
+	{
+	  int k = (int)key;
+	  if ((double)k == key) {  /* is an integer index? */
+	    SetNum(k, value);  /* use specialized version */
+	  } else {
+	    Node n = MainPosition(key);
+	    do 
+	      {  /* check whether `key' is somewhere in the chain */
+		if (n.key is double && (double)(n.key) == key) {
+		  n.val = value;
+		  return;  /* that's it */
+		} else n = n.next;
+	      } while (n!=null);
+	    if(n==null && value != Nil.Instance) {
+	      n = NewKey(key);
+	      n.val = value;
+	    } else if(n != null) n.val = value;
+	  }
+	}
+    }
+
     public override bool Equals(Reference r) {
       return r == this;
     }

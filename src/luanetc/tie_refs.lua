@@ -85,7 +85,7 @@ visitor["local"] = function (st, nlocal)
   for _, exp in ipairs(nlocal.exps or {}) do
     tie_refs(st, exp)
   end
-  for _, var in ipairs(nlocal.names) do
+  for i, var in ipairs(nlocal.names) do
     var.ref = st:add(var.val)
   end
 end
@@ -134,6 +134,10 @@ function visitor.name(st, name)
 end
 
 function visitor.binop(st, binop)
+  local arith_ops = { ["+"] = "add", ["-"] = "sub", ["/"] = "div",
+    ["*"] = "mul", ["%"] = "rem", ["^"] = "exp", ["and"] = true,
+    ["or"] = true
+  }
   tie_refs(st, binop.left)
   tie_refs(st, binop.right)
 end

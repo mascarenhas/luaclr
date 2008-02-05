@@ -3,7 +3,7 @@ require"stream.file"
 --require"std.base"
 
 local luap = require"cheese.luap"
---local ast = require"cheese.luac.ast"
+local ast = require"cheese.luanetc.tie_refs"
 local dumper = require"cheese.luap.dump"
 
 for _, filename in ipairs({...}) do

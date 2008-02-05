@@ -43,6 +43,7 @@ function _M:search(name)
       local var_func = self[i].func
       if var_func ~= this_func then
 	var.isupval = true
+	var.type = "any"
 	for j = i, #self, 1 do
 	  local middle_func = self[j].func
 	  if middle_func ~= var_func then

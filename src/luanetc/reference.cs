@@ -94,6 +94,8 @@ namespace Lua {
 
     public virtual object this[Symbol key] { get { return this[(object)key]; } set { this[(object)key] = value; } }
 
+    public virtual object this[double key] { get { return this[(object)key]; } set { this[(object)key] = value; } }
+
     public abstract Table Metatable { get; set; }
   }
 }

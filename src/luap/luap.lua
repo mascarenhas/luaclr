@@ -152,7 +152,7 @@ local INVALID_SQUOTE = INVALID / char("\'")
 local SQUOTE_STRING = char("\'") % skip .. star(ESCAPE / (any - INVALID_SQUOTE)) .. char("\'") % skip
 
 local SHORT_STRING = (SQUOTE_STRING / DQUOTE_STRING .. SPACING) % concat %
-                       function (str) return { tag = "string", val = str } end
+                       function (str) return { tag = "string", val = str, type = "string" } end
 
 local REST_LONG_STRING = ext(function (strm)
                             local level = strm.bracket_level
@@ -175,7 +175,7 @@ local LONG_STRING = (((str("[") .. star(char("=")) .. char("[")) % concat %
                           function (bracket)
                             strm.bracket_level = string.len(bracket) - 2
                           end) .. REST_LONG_STRING .. SPACING) % concat % function (str)
-                            return { tag = "string", val = str } end
+                            return { tag = "string", val = str, type = "string" } end
 
 STRING = SHORT_STRING / LONG_STRING
 
@@ -192,7 +192,7 @@ local EXPONENT = class("e", "E") .. SIGN .. DEC_DIGITS
 local DEC_NUMBER = DEC_DIGITS .. opt(char(".") .. DEC_DIGITS) .. opt(EXPONENT) .. SPACING
 
 NUMBER = (HEXA_NUMBER / DEC_NUMBER) % concat %
-                     function (str) return { tag = "number", val = tonumber(str) } end
+                     function (str) return { tag = "number", val = tonumber(str), type = "number" } end
 
 LITERAL = NUMBER / STRING
 
@@ -293,7 +293,7 @@ FuncName = (NAME .. star(DOT .. NAME) .. opt(COLON .. NAME)) %
                        function (tree)
 			 local funcname_node = tree[1]
 			 for _, v in ipairs(tree[2]) do
-			   funcname_node = { tag = "index", table = funcname_node, index = { tag = "string", val = v[2].val } }
+			   funcname_node = { tag = "index", table = funcname_node, index = { tag = "string", val = v[2].val, type = "string" } }
 			 end
 		       	 if #tree[3]>0 then funcname_node.self = tree[3][2].val end
                          return funcname_node
@@ -360,7 +360,7 @@ PrimaryExp = (PrefixExp .. star(NameIndex / ExpIndex / MethodCall / FuncArgs)) %
 			   local exp_node = tree[1]
 			   for _, v in ipairs(tree[2]) do
 			     if v.tag == "nameindex" then
-			       exp_node = { tag = "index", table = exp_node, index = { tag = "string", val = v.name } }
+			       exp_node = { tag = "index", table = exp_node, index = { tag = "string", val = v.name, type = "string" } }
 			     elseif v.tag == "expindex" then
 			       exp_node = { tag = "index", table = exp_node, index = v.exp }
 			     elseif v.tag == "method" then
@@ -392,8 +392,9 @@ AnonFunction = (FUNCTION .. FuncBody) %
                              return { tag = "function", parlist = tree[2].parlist, block = tree[2].block }
                            end
 
-SimpleExp = NUMBER / STRING / (NIL % function () return { tag = "nil" } end) / (TRUE % function () return { tag = "true" } end) /
-  (FALSE % function () return { tag = "false" } end) / (ELLIPSIS % function () return { tag = "ellipsis" } end) / Constructor /
+SimpleExp = NUMBER / STRING / (NIL % function () return { tag = "nil", type = "nil" } end) / 
+  (TRUE % function () return { tag = "true", type = "boolean" } end) /
+  (FALSE % function () return { tag = "false", type = "boolean" } end) / (ELLIPSIS % function () return { tag = "ellipsis" } end) / Constructor /
   AnonFunction / FunctionCall / PrimaryExp
 
 NameList = (NAME .. star(COMMA .. NAME)) %
@@ -507,7 +508,7 @@ FuncDef = (FUNCTION .. FuncName .. FuncBody) %
                       function (tree)
 			local name = tree[2]
 			if tree[2].self then
-			  name = { tag = "index", table = tree[2], index = { tag = "string", val = tree[2].self } }
+			  name = { tag = "index", table = tree[2], index = { tag = "string", val = tree[2].self, type = "string" } }
 			  table.insert(tree[3].parlist, 1, { tag = "name", val = "self" })
 			  tree[2].self = nil
 			end

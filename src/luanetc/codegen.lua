@@ -24,7 +24,9 @@ visitor["while"] = function (compiler, nwhile)
   compiler.ilgen:start_loop()
   compiler.ilgen:mark_label(test)
   compiler:compile(nwhile.exp)
-  compiler.ilgen:jump_if_false(out)
+  if nwhile.exp.type ~= "number" then
+    compiler.ilgen:jump_if_false(out)
+  end
   compiler:compile(nwhile.block)
   compiler.ilgen:emit(OpCodes.br, test)
   compiler.ilgen:mark_label(out)
@@ -37,7 +39,9 @@ visitor["repeat"] = function (compiler, nrepeat)
   compiler.ilgen:mark_label(top)
   compiler:compile(nrepeat.block)
   compiler:compile(nrepeat.exp)
-  compiler.ilgen:jump_if_false(top)
+  if nwhile.exp.type ~= "number" then
+    compiler.ilgen:jump_if_false(top)
+  end
   compiler.ilgen:end_loop()
 end
 
@@ -45,7 +49,9 @@ visitor["if"] = function (compiler, nif)
   local out = compiler.ilgen:define_label()
   local lelse = compiler.ilgen:define_label()
   compiler:compile(nif.cond)
-  compiler.ilgen:jump_if_false(lelse)
+  if nif.cond.type ~= "number" then
+    compiler.ilgen:jump_if_false(lelse)
+  end
   compiler:compile(nif.block)
   compiler.ilgen:emit(OpCodes.br, out)
   compiler.ilgen:mark_label(lelse)
@@ -63,15 +69,23 @@ function visitor.nfor(compiler, nfor)
   local test = compiler.ilgen:define_label()
   local loop = compiler.ilgen:define_label()
   compiler:compile(nfor.start)
+  if nfor.start.type == "number" and nfor.var.ref.type ~= "number" then
+    compiler.ilgen:box_number()
+  end
   compiler.ilgen:store_local(nfor.var.ref)
   local temp_finish = compiler.ilgen:get_temp(compiler.ilgen.double_type)
   compiler:compile(nfor.finish)
-  compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.double_type)
+  print("// Type: " .. nfor.finish.type .. "\n")
+  if nfor.finish.type ~= "number" then
+    compiler.ilgen:unbox_number()
+  end
   compiler.ilgen:store_local(temp_finish)
   local temp_step = compiler.ilgen:get_temp(compiler.ilgen.double_type)
   if nfor.step then
     compiler:compile(nfor.step)
-    compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.double_type)
+    if nfor.finish.type ~= "number" then
+      compiler.ilgen:unbox_number()
+    end
     compiler.ilgen:store_local(temp_step)
   end
   compiler.ilgen:emit(OpCodes.br, test)
@@ -80,22 +94,32 @@ function visitor.nfor(compiler, nfor)
   compiler:compile(nfor.block)
   if nfor.step then
     compiler.ilgen:load_local(nfor.var.ref)
-    compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.double_type)
+    if nfor.var.ref.type ~= "number" then
+      compiler.ilgen:unbox_number()
+    end
     compiler.ilgen:load_local(temp_step)
     compiler.ilgen:emit(OpCodes.add)
-    compiler.ilgen:emit(OpCodes.box, compiler.ilgen.double_type)
+    if nfor.var.ref.type ~= "number" then
+      compiler.ilgen:box_number()
+    end
     compiler.ilgen:store_local(nfor.var.ref)
   else
     compiler.ilgen:load_local(nfor.var.ref)
-    compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.double_type)
+    if nfor.var.ref.type ~= "number" then
+      compiler.ilgen:unbox_number()
+    end
     compiler.ilgen:emit(OpCodes.ldc_r8, 1)
     compiler.ilgen:emit(OpCodes.add)
-    compiler.ilgen:emit(OpCodes.box, compiler.ilgen.double_type)
+    if nfor.var.ref.type ~= "number" then
+      compiler.ilgen:box_number()
+    end
     compiler.ilgen:store_local(nfor.var.ref)
   end
   compiler.ilgen:mark_label(test)
   compiler.ilgen:load_local(nfor.var.ref)
-  compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.double_type)
+  if nfor.var.ref.type ~= "number" then
+    compiler.ilgen:unbox_number()
+  end
   compiler.ilgen:load_local(temp_finish)
   compiler.ilgen:emit(OpCodes.ble, loop)
   compiler.ilgen:end_loop()
@@ -148,6 +172,9 @@ visitor["local"] = function (compiler, nlocal)
   if nlocal.exps then
     compiler.ilgen:explist(nlocal.exps, #nlocal.names)
     for i = #nlocal.names, 1, -1 do
+      if nlocal.exps[i] and nlocal.exps[i].type == "number" and nlocal.names[i].ref.type ~= "number" then
+	compiler.ilgen:box_number()
+      end
       compiler.ilgen:store_local(nlocal.names[i].ref)
     end
   else
@@ -161,6 +188,9 @@ end
 function visitor.assign(compiler, assign)
   compiler.ilgen:explist(assign.exps, #assign.vars)
   for i = #assign.vars, 1, -1 do
+    if assign.exps[i] and assign.exps[i].type == "number" and assign.vars[i].ref.type ~= "number" then
+      compiler.ilgen:box_number()
+    end
     compiler:compile(assign.vars[i])
   end
 end
@@ -181,6 +211,9 @@ visitor["return"] = function (compiler, nreturn)
   elseif compiler.current_func.ret_type == "single" then
     if #nreturn.exps > 0 then
       compiler:compile(nreturn.exps[1])
+      if nreturn.exps[1].type == "number" then
+	compiler.ilgen:box_number()
+      end
     else
       compiler.ilgen:load_nil()
     end
@@ -208,7 +241,9 @@ function visitor.var(compiler, var)
     compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
     compiler:compile(var.ref.index)
     compiler.ilgen:load_local(val)
-    if type(var.ref.index) == "string" or var.ref.index.tag == "string" then
+    if var.ref.index.type == "number" then
+      compiler.ilgen:settable_number()
+    elseif var.ref.index.type == "string" then
       compiler.ilgen:settable_symbol()
     else
       compiler.ilgen:settable()
@@ -223,7 +258,9 @@ function visitor.index(compiler, pexp)
   compiler:compile(pexp.table)
   compiler.ilgen:emit(OpCodes.castclass, compiler.ilgen.luaref_type)
   compiler:compile(pexp.index)
-  if type(pexp.index) == "string" or pexp.index.tag == "string" then
+  if pexp.index.type == "number" then
+    compiler.ilgen:gettable_number()
+  elseif pexp.index.type == "string" then
     compiler.ilgen:gettable_symbol()
   else
     compiler.ilgen:gettable()
@@ -250,12 +287,18 @@ function visitor.constructor(compiler, cons)
 	compiler.ilgen:emit(OpCodes.dup)
 	compiler.ilgen:load_number(i)
 	compiler:compile(field, 1) -- replace with array 
-	compiler.ilgen:settable()
+	if field.type == "number" then
+	  compiler.ilgen:box_number()
+	end
+	compiler.ilgen:settable_number()
       else
 	compiler.ilgen:emit(OpCodes.dup)
 	compiler.ilgen:load_number(i)
 	compiler:compile(field, 1)
-	compiler.ilgen:settable()
+	if field.type == "number" then
+	  compiler.ilgen:box_number()
+	end
+	compiler.ilgen:settable_number()
       end
       i = i + 1
     end
@@ -266,6 +309,9 @@ function visitor.namefield(compiler, namefield)
   compiler.ilgen:emit(OpCodes.dup)
   compiler.ilgen:load_string(namefield.name)
   compiler:compile(namefield.exp, 1)
+  if namefield.exp.type == "number" then
+    compiler.ilgen:box_number()
+  end
   compiler.ilgen:settable_symbol()
 end
 
@@ -273,6 +319,9 @@ function visitor.indexfield(compiler, indexfield)
   compiler.ilgen:emit(OpCodes.dup)
   compiler:compile(indexfield.name, 1)
   compiler:compile(indexfield.exp, 1)
+  if indexfield.exp.type == "number" then
+    compiler.ilgen:box_number()
+  end
   compiler.ilgen:settable()
 end
 
@@ -290,7 +339,7 @@ function visitor.binop(compiler, binop)
   local rel_ops = { ["=="] = "beq", ["~="] = "bne", ["<"] = "blt",
     [">"] = "bgt", ["<="] = "ble", [">="] = "bge" }
   if arith_ops[binop.op] then
-    compiler.ilgen:arith(arith_ops[binop.op], binop.left, binop.right)
+    compiler.ilgen:arith(arith_ops[binop.op], binop.left, binop.right, binop.type)
   elseif rel_ops[binop.op] then
     compiler.ilgen:rel(rel_ops[binop.op], binop.left, binop.right)
   elseif binop.op == "and" or binop.op == "or" then
@@ -298,7 +347,13 @@ function visitor.binop(compiler, binop)
 					   binop.left, binop.right)
   elseif binop.op == ".." then
     compiler:compile(binop.left, 1)
+    if binop.left.type == "number" then
+      compiler.ilgen:box_number()
+    end
     compiler:compile(binop.right, 1)
+    if binop.right.type == "number" then
+      compiler.ilgen:box_number()
+    end
     compiler.ilgen:concat()
   else
     error("invalid binary operator: '" .. binop.op .. "'")
@@ -340,18 +395,15 @@ end
 function compile(compiler, node, ...)
   if node and node.tag and visitor[node.tag] then 
     visitor[node.tag](compiler, node, ...)
+  elseif node and node.tag == "nil" then
+    compiler.ilgen:load_nil()
+  elseif node and node.tag == "true" then
+    compiler.ilgen:load_true()
+  elseif node and node.tag == "false" then
+    compiler.ilgen:load_false()
+  elseif type(node) == "table" and (not node.tag) then
+    visitor.block(compiler, node)
   else
-    if type(node) == "nil" or node == "nil" or (node.tag and node.tag == "nil") then
-      compiler.ilgen:load_nil()
-    elseif node == "true" or (node.tag and node.tag == "true") then
-      compiler.ilgen:load_true()
-    elseif node == "false" or (node.tag and node.tag == "false") then
-      compiler.ilgen:load_false()
-    elseif type(node) == "table" then
-      visitor.block(compiler, node)
-    else
-      error("node " .. node .. "not supported by compiler yet")
-    end
+    error("node " .. node .. " not supported by compiler yet")
   end
 end
-
