@@ -1,6 +1,6 @@
 require"stream.string"
 require"stream.file"
---require"std.base"
+require"std.base"
 
 local luap = require"cheese.luap"
 local ast = require"cheese.luanetc.tie_refs"
@@ -13,6 +13,7 @@ local ok, res = xpcall(function ()
   local parsed_ast = luap.parser.Chunk(stream.file.new(file))
 --  print(prettytostring(parsed_ast, "  "))
 --  ast.tie_refs(nil, parsed_ast)
+  print(prettytostring(parsed_ast))
   print(dumper.dump(parsed_ast))
   parsed_ast = luap.parser.Chunk(stream.string.new(dumper.dump(parsed_ast)))
   print(dumper.dump(parsed_ast))
