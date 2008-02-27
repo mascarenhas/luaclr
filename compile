@@ -1,6 +1,6 @@
 #!/bin/sh
 
-LUA_PATH="./src/?.lua"
+export LUA_PATH="./src/?.lua"
 dir="`dirname $1`"
 base="`basename $1 .lua`"
 lua="`basename $1`"

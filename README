@@ -22,7 +22,7 @@ LuaCLR is free software. The contents of this distribution are Copyright
 
 2. Installation
 
-Just do "make" in Linux, or "nmake -f Makefile.win" in Windows.
+Just do "make all" in Linux, or "nmake -f Makefile.win all" in Windows.
 
 3. Running
 
