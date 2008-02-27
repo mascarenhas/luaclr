@@ -18,27 +18,27 @@ as well as integration with the rest of the CLR. The design is also not fixed, a
 will probably change in the near future.
 
 LuaCLR is free software. The contents of this distribution are Copyright
-2006 Fabio Mascarenhas, and released through the MIT license.
+2007-2008 Fabio Mascarenhas, and released through the MIT license.
 
 2. Installation
 
-There is a Makefile for GNU make, so I recommend installing a suite
-of GNU tools for Windows. Edit the Makefile to point to where
-you store your Lua libraries, and do "make" and "make install".
+Just do "make" in Linux, or "nmake -f Makefile.win" in Windows.
 
-If you don't have GNU make, and don't want to fiddle with UNIX utilities
-see the Makefile for build/installation instructions (it's really easy).
+3. Running
 
-3. Testing
+Run the compile shell script/bat file to compile a Lua file. You should
+run it from the root path of LuaCLR:
 
-To run a minimal test suite for the parser part type "make test". I will work
-on integrating the Lua test suite.
+compile myscript.lua
 
-5. Documentation
+This will generate a myscript.dll file. You can run it with run.exe:
 
-Please check the doc directory for extra documentation.
+run.exe myscript
 
-7. Credits
+You will probably see an error message, as there is a lot of functionality
+is still missing. :-)
+
+4. Credits
 
 LuaCLR is designed by Fabio Mascarenhas. You can contact the author
 at mascarenhas@acm.org.
