@@ -2,7 +2,7 @@ LUA_INCLUDE_DIR= /usr/include/lua5.1
 LUA_MODULE_DIR= /usr/share/lua/5.1
 LUA_LIB_DIR= /usr/lib/lua/5.1
 
-CS_FILES= src/luanetc/closure.cs  src/luanetc/clrfunction.cs  src/luanetc/reference.cs  src/luanetc/singletons.cs  src/luanetc/stdlib.cs  src/luanetc/string.cs  src/luanetc/table.cs  src/luanetc/value.cs
+CS_FILES= src/cheese/luanetc/closure.cs  src/cheese/luanetc/clrfunction.cs  src/cheese/luanetc/reference.cs  src/cheese/luanetc/singletons.cs  src/cheese/luanetc/stdlib.cs  src/cheese/luanetc/string.cs  src/cheese/luanetc/table.cs  src/cheese/luanetc/value.cs
 
 lua.dll: $(CS_FILES)
 	gmcs /t:library /out:lua.dll $(CS_FILES)
@@ -17,12 +17,11 @@ install:
 	mkdir -p $(LUA_MODULE_DIR)/stream
 	cp src/stream/*.lua $(LUA_MODULE_DIR)/stream
 	mkdir -p $(LUA_MODULE_DIR)/cheese
-	cp src/parsers.lua $(LUA_MODULE_DIR)/cheese
-	cp src/luap/luap.lua $(LUA_MODULE_DIR)/cheese
+	cp src/cheese/*.lua $(LUA_MODULE_DIR)/cheese
 	mkdir -p $(LUA_MODULE_DIR)/cheese/luap
-	cp src/luap/dump.lua $(LUA_MODULE_DIR)/cheese/luap
+	cp src/cheese/luap/*.lua $(LUA_MODULE_DIR)/cheese/luap
 	mkdir -p $(LUA_MODULE_DIR)/cheese/luanetc
-	cp src/luanetc/*.lua $(LUA_MODULE_DIR)/cheese/luanetc
+	cp src/cheese/luanetc/*.lua $(LUA_MODULE_DIR)/cheese/luanetc
 
 uninstall:
 	rm -f $(LUA_MODULE_DIR)/cheese.lua
