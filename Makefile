@@ -7,7 +7,10 @@ CS_FILES= src/luanetc/closure.cs  src/luanetc/clrfunction.cs  src/luanetc/refere
 lua.dll: $(CS_FILES)
 	gmcs /t:library /out:lua.dll $(CS_FILES)
 
-all: lua.dll
+run.exe: run.cs
+	gmcs /r:lua.dll run.cs
+
+all: lua.dll run.exe
 
 install:
 	cp src/cheese.lua $(LUA_MODULE_DIR)
