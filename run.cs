@@ -1,8 +1,8 @@
 using Lua;
 using System;
-using richards;
+using System.Reflection;
 
-public class runrichards {
+public class run {
   public static void Main(string[] args) {
     Table env = new Table();
     Symbol k;
@@ -49,9 +49,11 @@ public class runrichards {
     v = new Floor();
     math[k] = v;
 
-    function1 f = new function1();
-    f.Env = env;
-    f.InvokeS();
+    Closure c = (Closure)Assembly.LoadFrom(args[0] + ".dll").
+      GetType(args[0] + ".function1").GetConstructor(new Type[0]).
+      Invoke(new object[0]);
+    c.Env = env;
+    c.InvokeS();
     for(int i = 0; i <= System.GC.MaxGeneration; i++)
       Console.WriteLine(System.GC.CollectionCount(i));
   }

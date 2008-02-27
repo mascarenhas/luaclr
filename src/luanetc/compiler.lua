@@ -217,7 +217,7 @@ function _M:output_func(func)
   for i, ops in pairs(func.invokeS) do
     print_method_name(func, i, "object", "InvokeS")
     print("  {")
-    print("        .maxstack 24")
+    print("        .maxstack 32")
     if #func.args == i then
       print_locals(func.locals)
     elseif i == "array" then
@@ -231,7 +231,7 @@ function _M:output_func(func)
   for i, ops in pairs(func.invokeM) do
     print_method_name(func, i, "object[]", "InvokeM")
     print("  {")
-    print("        .maxstack 24")
+    print("        .maxstack 32")
     if #func.args == i then
       print_locals(func.locals)
     elseif i == "array" then
